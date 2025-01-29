@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.task-card {
+    @apply bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300;
+}
+
+.due-date {
+    @apply text-sm text-gray-500 dark:text-gray-400;
+}

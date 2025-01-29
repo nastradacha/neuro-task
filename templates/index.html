@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" x-data="{ darkMode: false }" :class="{ 'dark': darkMode }">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroTask</title>
+    <link href="/static/output.css" rel="stylesheet">
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .ai-loader {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-3xl" x-data="taskManager()" x-init="init()">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-12">
+            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                NeuroTask
+            </h1>
+            <button @click="darkMode = !darkMode" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                🌓
+            </button>
+        </div>
+
+        <!-- Add Task Form -->
+        <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+            <form @submit.prevent="addTask" class="space-y-4">
+                <input x-model="newTask"
+                       type="text"
+                       placeholder="What needs to be done?"
+                       class="w-full p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <input x-model="newDueDate"
+                           type="datetime-local"
+                           class="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
+                    
+                    <div class="flex gap-2">
+                        <button type="submit"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-xl transition-all flex-1">
+                            Add Task 🚀
+                        </button>
+
+                        <button @click="aiSuggest"
+                                type="button"
+                                class="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-xl transition-all flex items-center gap-2"
+                                :disabled="isAILoading">
+                            <span x-show="!isAILoading">🤖 AI Suggestions</span>
+                            <span x-show="isAILoading" class="ai-loader">🌀 Generating...</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- AI Suggestions -->
+        <div x-show="showSuggestion" 
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform -translate-y-2"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             class="mb-4 p-4 bg-indigo-50 dark:bg-gray-700 rounded-xl shadow-sm">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-indigo-600 dark:text-indigo-300 font-semibold flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    AI Suggestions
+                </h3>
+                <button @click="showSuggestion = false" 
+                        class="text-indigo-800 dark:text-indigo-200 hover:text-indigo-900 dark:hover:text-indigo-100 text-xl">
+                    &times;
+                </button>
+            </div>
+            <div x-html="aiSuggestionText" 
+                 class="text-gray-700 dark:text-gray-200 whitespace-pre-line"></div>
+        </div>
+
+        <!-- Task List -->
+        <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
+            <template x-for="task in tasks" :key="task.id">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <button @click="deleteTask(task.id)"
+                                    class="text-red-500 hover:text-red-600 transition-colors">
+                                ✕
+                            </button>
+                            <span x-text="task.task" 
+                                  class="text-gray-800 dark:text-gray-200"></span>
+                        </div>
+                        <span x-text="new Date(task.due_date).toLocaleString()" 
+                              class="text-sm text-gray-500"></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <script>
+        function taskManager() {
+            return {
+                tasks: [],
+                newTask: '',
+                newDueDate: '',
+                showSuggestion: false,
+                aiSuggestionText: '',
+                isAILoading: false,
+
+                async init() {
+                    this.tasks = await this.fetchTasks();
+                },
+
+                async fetchTasks() {
+                    try {
+                        const response = await fetch('/tasks');
+                        if (!response.ok) throw new Error('Failed to fetch tasks');
+                        return await response.json();
+                    } catch (error) {
+                        console.error('Fetch tasks error:', error);
+                        return [];
+                    }
+                },
+
+                async addTask() {
+                    try {
+                        const response = await fetch('/tasks', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                task: this.newTask,
+                                due_date: this.newDueDate || new Date().toISOString()
+                            })
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to add task');
+                        
+                        this.newTask = '';
+                        this.newDueDate = '';
+                        this.tasks = await this.fetchTasks();
+                        
+                    } catch (error) {
+                        console.error('Add task error:', error);
+                        alert('Error adding task: ' + error.message);
+                    }
+                },
+
+                async deleteTask(id) {
+                    try {
+                        const response = await fetch(`/tasks/${id}`, { 
+                            method: 'DELETE' 
+                        });
+                        if (!response.ok) throw new Error('Failed to delete task');
+                        this.tasks = await this.fetchTasks();
+                    } catch (error) {
+                        console.error('Delete task error:', error);
+                        alert('Error deleting task: ' + error.message);
+                    }
+                },
+
+                async aiSuggest() {
+                    if (!this.newTask.trim()) {
+                        alert('Please enter a task description first!');
+                        return;
+                    }
+
+                    try {
+                        this.isAILoading = true;
+                        this.showSuggestion = true;
+                        this.aiSuggestionText = 'Generating suggestions...';
+
+                        const response = await fetch('/ai/suggest', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ task: this.newTask })
+                        });
+
+                        const data = await response.json();
+                        
+                        if (!response.ok) {
+                            throw new Error(data.error || 'AI service unavailable');
+                        }
+
+                        this.aiSuggestionText = data.suggestion
+                            .replace(/\n/g, '<br>')
+                            .replace(/\*/g, '•');
+                            
+                    } catch (error) {
+                        console.error('AI Error:', error);
+                        this.aiSuggestionText = `Error: ${error.message}`;
+                    } finally {
+                        this.isAILoading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
