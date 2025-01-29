@@ -19,6 +19,7 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["REDIS_URL"] = "redis://localhost:6379"
 app.register_blueprint(sse, url_prefix="/stream")  # <-- This stays the same
 
