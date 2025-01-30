@@ -37,24 +37,20 @@ def index():
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
     conn = get_db()
-    tasks = conn.execute('''
-        SELECT *, 
-        CASE WHEN datetime(due_date) < datetime('now') 
-        THEN 'overdue' ELSE 'pending' END AS status
-        FROM tasks 
-        ORDER BY due_date
-    ''').fetchall()
-    return jsonify([dict(task) for task in tasks])
+    c = conn.cursor()
+    c.execute('SELECT id, task, due_date, priority, status FROM tasks ORDER BY due_date')
+    tasks = [dict(task) for task in c.fetchall()]
+    return jsonify(tasks)
 
 @app.route('/tasks', methods=['POST'])
 def create_task():
     data = request.json
     conn = get_db()
-    conn.execute('INSERT INTO tasks (task, due_date) VALUES (?, ?)',
-                (data['task'], data['due_date']))
+    c = conn.cursor()
+    c.execute('INSERT INTO tasks (task, due_date, priority) VALUES (?, ?, ?)',
+             (data['task'], data['due_date'], data.get('priority', 'medium')))
     conn.commit()
-    sse.publish({"message": "update"}, type='task_update')
-    return jsonify({'status': 'success'})
+    return jsonify({'status': 'success'}), 201
 
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):

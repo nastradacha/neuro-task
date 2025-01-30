@@ -59,6 +59,14 @@
                         </button>
                     </div>
                 </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <select x-model="newPriority" 
+                            class="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
+                      <option value="low">Low</option>
+                      <option value="medium" selected>Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
             </form>
         </div>
 
@@ -87,23 +95,34 @@
 
         <!-- Task List -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
-            <template x-for="task in tasks" :key="task.id">
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <button @click="deleteTask(task.id)"
-                                    class="text-red-500 hover:text-red-600 transition-colors">
-                                ✕
-                            </button>
-                            <span x-text="task.task" 
-                                  class="text-gray-800 dark:text-gray-200"></span>
-                        </div>
-                        <span x-text="new Date(task.due_date).toLocaleString()" 
-                              class="text-sm text-gray-500"></span>
-                    </div>
+    <template x-for="task in tasks" :key="task.id">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
+            <!-- Add Priority Badge Here -->
+            <div class="absolute top-2 right-2">
+                <span :class="{
+                    'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
+                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
+                    'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
+                }" class="px-2 py-1 rounded-full text-xs font-medium">
+                    <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
+                </span>
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <button @click="deleteTask(task.id)"
+                            class="text-red-500 hover:text-red-600 transition-colors">
+                        ✕
+                    </button>
+                    <span x-text="task.task" 
+                          class="text-gray-800 dark:text-gray-200"></span>
                 </div>
-            </template>
+                <span x-text="new Date(task.due_date).toLocaleString()" 
+                      class="text-sm text-gray-500"></span>
+            </div>
         </div>
+    </template>
+</div>
     </div>
 
     <script>
@@ -112,6 +131,7 @@
                 tasks: [],
                 newTask: '',
                 newDueDate: '',
+                newPriority: 'medium',
                 showSuggestion: false,
                 aiSuggestionText: '',
                 isAILoading: false,
@@ -138,7 +158,8 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 task: this.newTask,
-                                due_date: this.newDueDate || new Date().toISOString()
+                                due_date: this.newDueDate || new Date().toISOString(),
+                                priority: this.newPriority
                             })
                         });
                         
@@ -146,6 +167,7 @@
                         
                         this.newTask = '';
                         this.newDueDate = '';
+                        this.newPriority = 'medium';
                         this.tasks = await this.fetchTasks();
                         
                     } catch (error) {

@@ -6,7 +6,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS tasks
              (id INTEGER PRIMARY KEY,
               task TEXT,
               due_date TEXT,
-              created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+              priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
               status TEXT DEFAULT 'pending')''')
 conn.commit()
+
 conn.close()
