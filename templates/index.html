@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NeuroTask</title>
     <!--   <link href="/static/output.css" rel="stylesheet"> -->
-    <link href="/static/output.css?v=2" rel="stylesheet">
+    <link href="/static/output.css?v=3" rel="stylesheet">
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
@@ -95,33 +95,47 @@
 
         <!-- Task List -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
-    <template x-for="task in tasks" :key="task.id">
-        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
-            <!-- Add Priority Badge Here -->
-            <div class="absolute top-2 right-2">
-                <span :class="{
+            <template x-for="task in tasks" :key="task.id">
+                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
+                  <!-- Priority Badge -->
+                  <div class="absolute top-2 right-2 z-10">
+                    <span :class="{
+                      'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
+                      'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
+                      'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
+                    }" class="px-2 py-1 rounded-full text-xs font-medium">
+                      <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
+                    </span>
+                  </div>
+                  
+                  <!-- Task Content -->
+                  <div class="flex items-center justify-between w-full">
+                    <!-- Task Details -->
+                    <div class="flex items-center gap-4 flex-1">
+                        <button @click="deleteTask(task.id)"
+                                class="text-red-500 hover:text-red-600 transition-colors shrink-0">
+                            ✕
+                        </button>
+                        <span x-text="task.task"
+                              class="text-gray-800 dark:text-gray-200 truncate"></span>
+                    </div>
+                    <!-- Date-Time -->
+                    <div class="shrink-0">
+                        <span x-text="new Date(task.due_date).toLocaleString()" 
+                              class="due-date"></span>
+                    </div>
+                </div>
+                <!-- Priority Badge -->
+                <div class="priority-badge" :class="{
                     'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
                     'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
                     'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
-                }" class="px-2 py-1 rounded-full text-xs font-medium">
+                }">
                     <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
-                </span>
-            </div>
-            
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <button @click="deleteTask(task.id)"
-                            class="text-red-500 hover:text-red-600 transition-colors">
-                        ✕
-                    </button>
-                    <span x-text="task.task" 
-                          class="text-gray-800 dark:text-gray-200"></span>
                 </div>
-                <span x-text="new Date(task.due_date).toLocaleString()" 
-                      class="text-sm text-gray-500"></span>
-            </div>
-        </div>
-    </template>
+                </div>
+                </div>
+            </template>
 </div>
     </div>
 

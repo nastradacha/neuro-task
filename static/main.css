@@ -4,9 +4,35 @@
 
 /* Custom styles */
 .task-card {
-    @apply bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300;
+  @apply bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300;
+}
+
+.priority-badge {
+  @apply absolute top-2 right-1 z-10 px-3 py-1 rounded-full text-xs font-medium;
 }
 
 .due-date {
-    @apply text-sm text-gray-500 dark:text-gray-400;
+  @apply text-sm text-gray-500 dark:text-gray-400;
+  margin-right: 4rem; /* Add space to separate from the badge */
 }
+
+
+/* Fix for flex alignment */
+.task-content {
+  @apply flex items-center justify-between w-full;
+}
+
+
+
+
+
+
+.truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .z-10 {
+    z-index: 10;
+  }
