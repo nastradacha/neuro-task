@@ -97,6 +97,12 @@
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
             <template x-for="task in tasks" :key="task.id">
                 <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
+                    <div class="absolute left-2 top-1/2 -translate-y-1/2">
+                        <input type="checkbox" 
+                               :checked="task.completed"
+                               @change="toggleCompletion(task.id, $event.target.checked)"
+                               class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                      </div>
                   <!-- Priority Badge -->
                   <div class="absolute top-2 right-2 z-10">
                     <span :class="{
@@ -235,8 +241,30 @@
                         this.aiSuggestionText = `Error: ${error.message}`;
                     } finally {
                         this.isAILoading = false;
+                    }    
+                },
+
+                // Add to taskManager()
+                async toggleCompletion(id, completed) {
+                    try {
+                        const response = await fetch(`/tasks/${id}/complete`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ completed: completed })
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to update status');
+                        
+                        // Update local state
+                        const taskIndex = this.tasks.findIndex(t => t.id === id);
+                        this.tasks[taskIndex].completed = completed;
+                        
+                    } catch (error) {
+                        console.error('Completion error:', error);
                     }
                 }
+                
+
             }
         }
     </script>

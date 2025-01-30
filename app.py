@@ -38,7 +38,7 @@ def index():
 def get_tasks():
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT id, task, due_date, priority, status FROM tasks ORDER BY due_date')
+    c.execute('SELECT id, task, due_date, priority, completed FROM tasks ORDER BY due_date')
     tasks = [dict(task) for task in c.fetchall()]
     return jsonify(tasks)
 
@@ -78,7 +78,16 @@ def ai_suggest():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+    
+@app.route('/tasks/<int:task_id>/complete', methods=['PATCH'])
+def toggle_completion(task_id):
+    conn = get_db()
+    data = request.json
+    c = conn.cursor()
+    c.execute('UPDATE tasks SET completed = ? WHERE id = ?',
+             (data['completed'], task_id))
+    conn.commit()
+    return jsonify({'status': 'success'})
 
 
 
