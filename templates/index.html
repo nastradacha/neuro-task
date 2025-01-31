@@ -31,6 +31,13 @@
             </button>
         </div>
 
+        <div class="mb-4 text-right">
+            <button @click="testNotification" 
+                    class="text-sm text-gray-500 hover:text-gray-700">
+              Test Notifications
+            </button>
+          </div>
+
         <!-- Add Task Form -->
         <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <form @submit.prevent="addTask" class="space-y-4">
@@ -156,8 +163,12 @@
                 aiSuggestionText: '',
                 isAILoading: false,
 
+                notifiedTasks: new Set(),
+                notificationInterval: null,
+
                 async init() {
                     this.tasks = await this.fetchTasks();
+                    this.initNotifications();
                 },
 
                 async fetchTasks() {
@@ -262,9 +273,57 @@
                     } catch (error) {
                         console.error('Completion error:', error);
                     }
-                }
-                
+                },
 
+                // ADD NEW NOTIFICATION METHODS HERE
+                initNotifications() {
+                    if ('Notification' in window) {
+                        Notification.requestPermission().then(permission => {
+                            if (permission === 'granted') {
+                                // Initial check after 5 seconds
+                                setTimeout(() => this.checkDueTasks(), 5000);
+                                // Set up periodic checks every minute
+                                this.notificationInterval = setInterval(() => this.checkDueTasks(), 60000);
+                            }
+                        });
+                    }
+                },
+
+                async checkDueTasks() {
+                    try {
+                        const response = await fetch('/tasks/due_soon');
+                        const dueTasks = await response.json();
+                        
+                        dueTasks.forEach(task => {
+                            if (!this.notifiedTasks.has(task.id)) {
+                                this.showNotification(task);
+                                this.notifiedTasks.add(task.id);
+                            }
+                        });
+                        
+                    } catch (error) {
+                        console.error('Due tasks check failed:', error);
+                    }
+                },
+
+                showNotification(task) {
+                    if (Notification.permission === 'granted') {
+                        new Notification(`Task Due Soon: ${task.task}`, {
+                            body: `Due at ${new Date(task.due_date).toLocaleString()}`,
+                            icon: '/static/notification-icon.png',
+                            silent: false  // You can set to true if you don't want sound
+                        });
+                    }
+                },
+
+                // Optional: Add test method for debugging
+                testNotification() {
+                    this.showNotification({
+                        id: 0,
+                        task: "Test Notification",
+                        due_date: new Date().toISOString()
+                    });
+                }
             }
         }
     </script>

@@ -2,7 +2,7 @@ import os
 from flask import Flask, render_template, request, jsonify
 from flask_sse import sse
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from openai import OpenAI
 from flask_cors import CORS
@@ -88,6 +88,22 @@ def toggle_completion(task_id):
              (data['completed'], task_id))
     conn.commit()
     return jsonify({'status': 'success'})
+
+
+@app.route('/tasks/due_soon', methods=['GET'])
+def get_due_tasks():
+    conn = get_db()
+    c = conn.cursor()
+    now = datetime.now()
+    #soon = now + timedelta(minutes=30)  # 30-minute warning
+    soon = now + timedelta(minutes=int(os.getenv('NOTIFICATION_WINDOW', 30)))
+    
+    c.execute('''SELECT * FROM tasks 
+               WHERE datetime(due_date) BETWEEN datetime(?) AND datetime(?)
+               AND completed = 0''', 
+               (now, soon))
+    tasks = [dict(task) for task in c.fetchall()]
+    return jsonify(tasks)
 
 
 
