@@ -102,60 +102,127 @@
 
         <!-- Task List -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
+            <!-- Loop through main tasks -->
             <template x-for="task in tasks" :key="task.id">
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
-                    <div class="absolute left-2 top-1/2 -translate-y-1/2">
-                        <input type="checkbox" 
-                               :checked="task.completed"
-                               @change="toggleCompletion(task.id, $event.target.checked)"
-                               class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                      </div>
-                  <!-- Priority Badge -->
-                  <div class="absolute top-2 right-2 z-10">
-                    <span :class="{
+              <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
+          
+                <!-- Completion Checkbox (for main task) -->
+                <div class="absolute left-2 top-1/2 -translate-y-1/2">
+                  <input 
+                    type="checkbox" 
+                    :checked="task.completed"
+                    @change="toggleCompletion(task.id, $event.target.checked)"
+                    class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  >
+                </div>
+          
+                <!-- Priority Badge (top-right corner) -->
+                <div class="absolute top-2 right-2 z-10">
+                  <span :class="{
                       'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
                       'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
                       'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
-                    }" class="px-2 py-1 rounded-full text-xs font-medium">
-                      <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
-                    </span>
-                  </div>
-                  
-                  <!-- Task Content -->
-                  <div class="flex items-center justify-between w-full">
-                    <!-- Task Details -->
-                    <div class="flex items-center gap-4 flex-1">
-                        <button @click="deleteTask(task.id)"
-                                class="text-red-500 hover:text-red-600 transition-colors shrink-0">
-                            ✕
-                        </button>
-                        <span x-text="task.task"
-                              class="text-gray-800 dark:text-gray-200 truncate"></span>
-                    </div>
-                    <!-- Date-Time -->
-                    <div class="shrink-0">
-                        <span x-text="new Date(task.due_date).toLocaleString()" 
-                              class="due-date"></span>
-                    </div>
-                </div>
-                <!-- Priority Badge -->
-                <div class="priority-badge" :class="{
-                    'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
-                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
-                    'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
-                }">
+                    }" 
+                    class="px-2 py-1 rounded-full text-xs font-medium"
+                  >
                     <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
+                  </span>
                 </div>
+          
+                <!-- Main Task Content -->
+                <div class="flex items-center justify-between w-full">
+                  <div class="flex items-center gap-4 flex-1">
+                    <!-- Delete Main Task Button -->
+                    <button
+                      @click="deleteTask(task.id)"
+                      class="text-red-500 hover:text-red-600 transition-colors shrink-0"
+                    >
+                      ✕
+                    </button>
+                    <!-- Task Title/Text -->
+                    <span
+                      x-text="task.task"
+                      class="text-gray-800 dark:text-gray-200 truncate"
+                      :class="task.completed ? 'line-through text-gray-500' : ''"
+                    ></span>
+                  </div>
+                  <!-- Due Date -->
+                  <div class="shrink-0">
+                    <span 
+                      x-text="new Date(task.due_date).toLocaleString()" 
+                      class="due-date text-sm text-gray-500 dark:text-gray-400"
+                    ></span>
+                  </div>
                 </div>
+          
+                <!-- SUBTASK SECTION -->
+                <div class="mt-4 pl-8 border-l border-gray-300 dark:border-gray-700">
+                  <h4 class="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
+                    Subtasks
+                  </h4>
+          
+                  <!-- Existing subtasks for this task -->
+                  <template 
+                    x-for="subtask in subtasks[task.id]" 
+                    :key="subtask.id"
+                  >
+                    <div class="flex items-center justify-between mb-2">
+                      <!-- Subtask checkbox + text -->
+                      <div class="flex items-center gap-2">
+                        <input 
+                          type="checkbox" 
+                          :checked="subtask.completed"
+                          @change="toggleSubtaskCompletion(task.id, subtask)"
+                          class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        >
+                        <span 
+                          x-text="subtask.subtask"
+                          :class="subtask.completed ? 'line-through text-gray-400' : ''"
+                        ></span>
+                      </div>
+                      <!-- Delete subtask button -->
+                      <button
+                        @click="deleteSubtask(task.id, subtask.id)"
+                        class="text-red-500 hover:text-red-700 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </template>
+          
+                  <!-- Add new subtask form -->
+                  <div class="flex items-center gap-2 mt-3">
+                    <input 
+                      x-ref="subtaskInput"
+                      type="text"
+                      placeholder="Add subtask..."
+                      class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white"
+                    >
+                    <button
+                      @click="
+                        addSubtask(task.id, $refs.subtaskInput.value);
+                        $refs.subtaskInput.value = '';
+                      "
+                      class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md"
+                    >
+                      ➕
+                    </button>
+                  </div>
                 </div>
+                <!-- END SUBTASK SECTION -->
+          
+              </div>
             </template>
-</div>
+        </div>
+          
     </div>
 
     <script>
         function taskManager() {
             return {
                 tasks: [],
+                // Subtasks dictionary: { [taskId]: [ { id, subtask, completed }, ... ] }
+                subtasks: {}, 
                 newTask: '',
                 newDueDate: '',
                 newPriority: 'medium',
@@ -168,6 +235,11 @@
 
                 async init() {
                     this.tasks = await this.fetchTasks();
+
+                    // For each task, fetch its subtasks
+                    for (let t of this.tasks) {
+                        this.subtasks[t.id] = await this.fetchSubtasks(t.id);
+                    }
                     this.initNotifications();
                 },
 
@@ -181,8 +253,68 @@
                         return [];
                     }
                 },
+                
+                async fetchSubtasks(taskId) {
+                    const resp = await fetch(`/tasks/${taskId}/subtasks`);
+                    if (!resp.ok) return [];
+                    return await resp.json();
+                },
+
+                // Then add methods for subtask actions:
+                async addSubtask(taskId, subtaskText) {
+                    if (!subtaskText.trim()) {
+                        alert('Enter subtask text!');
+                        return;
+                    }
+                    const resp = await fetch(`/tasks/${taskId}/subtasks`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ subtask: subtaskText })
+                    });
+                    if (!resp.ok) {
+                        console.error('Failed to add subtask');
+                        return;
+                    }
+                    // Refresh that task's subtasks
+                    this.subtasks[taskId] = await this.fetchSubtasks(taskId);
+                },
+
+                async toggleSubtaskCompletion(taskId, subtask) {
+                    const resp = await fetch(`/tasks/${taskId}/subtasks/${subtask.id}/complete`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ completed: !subtask.completed })
+                    });
+                    if (!resp.ok) {
+                        console.error('Failed to toggle subtask completion');
+                        return;
+                    }
+                    // Refresh or just update local state
+                    subtask.completed = !subtask.completed;
+                },
+
+                async deleteSubtask(taskId, subtaskId) {
+                    const resp = await fetch(`/tasks/${taskId}/subtasks/${subtaskId}`, {
+                        method: 'DELETE'
+                    });
+                    if (!resp.ok) {
+                        console.error('Failed to delete subtask');
+                        return;
+                    }
+                    // Refresh local data
+                    this.subtasks[taskId] = await this.fetchSubtasks(taskId);
+                },
+
+
+
+
 
                 async addTask() {
+                    if (!this.newTask.trim()) {
+                        alert('Please enter a task description!');
+                        return;
+                    }
+
                     try {
                         const response = await fetch('/tasks', {
                             method: 'POST',
@@ -213,7 +345,12 @@
                             method: 'DELETE' 
                         });
                         if (!response.ok) throw new Error('Failed to delete task');
-                        this.tasks = await this.fetchTasks();
+                        
+                        // Remove from local tasks array
+                        this.tasks = this.tasks.filter(t => t.id !== id);
+                        
+                        // Remove from local subtasks dictionary
+                        delete this.subtasks[id];
                     } catch (error) {
                         console.error('Delete task error:', error);
                         alert('Error deleting task: ' + error.message);

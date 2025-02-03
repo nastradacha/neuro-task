@@ -45,20 +45,34 @@ def get_tasks():
 @app.route('/tasks', methods=['POST'])
 def create_task():
     data = request.json
+    task_text = (data.get('task') or '').strip()
+
+    # If the task text is empty, return a 400
+    if not task_text:
+        return jsonify({'error': 'Task description is required'}), 400
+
     conn = get_db()
     c = conn.cursor()
     c.execute('INSERT INTO tasks (task, due_date, priority) VALUES (?, ?, ?)',
-             (data['task'], data['due_date'], data.get('priority', 'medium')))
+             (task_text, data['due_date'], data.get('priority', 'medium')))
     conn.commit()
     return jsonify({'status': 'success'}), 201
 
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
     conn = get_db()
-    conn.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    c = conn.cursor()
+    
+    # Delete subtasks first
+    c.execute('DELETE FROM subtasks WHERE parent_task_id = ?', (task_id,))
+    
+    # Delete the parent task
+    c.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    
     conn.commit()
     sse.publish({"message": "update"}, type='task_update')
     return jsonify({'status': 'success'})
+
 
 @app.route('/ai/suggest', methods=['POST'])
 def ai_suggest():
@@ -104,6 +118,69 @@ def get_due_tasks():
                (now, soon))
     tasks = [dict(task) for task in c.fetchall()]
     return jsonify(tasks)
+
+
+
+@app.route('/tasks/<int:task_id>/subtasks', methods=['POST'])
+def create_subtask(task_id):
+    data = request.json
+    subtask_text = (data.get('subtask') or '').strip()
+
+    if not subtask_text:
+        return jsonify({'error': 'Subtask text is required'}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    # Insert the subtask
+    c.execute('INSERT INTO subtasks (parent_task_id, subtask) VALUES (?, ?)',
+              (task_id, subtask_text))
+    conn.commit()
+    # Return success
+    return jsonify({'status': 'success'}), 201
+
+
+@app.route('/tasks/<int:task_id>/subtasks', methods=['GET'])
+def get_subtasks(task_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM subtasks WHERE parent_task_id = ?', (task_id,))
+    results = c.fetchall()
+    # Convert each row to a dict
+    subtasks = [dict(
+        id=row[0],
+        parent_task_id=row[1],
+        subtask=row[2],
+        completed=row[3]
+    ) for row in results]
+    return jsonify(subtasks)
+
+
+@app.route('/tasks/<int:task_id>/subtasks/<int:subtask_id>/complete', methods=['PATCH'])
+def toggle_subtask_completion(task_id, subtask_id):
+    data = request.json
+    completed = data.get('completed', False)
+    
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('UPDATE subtasks SET completed = ? WHERE id = ? AND parent_task_id = ?',
+              (completed, subtask_id, task_id))
+    conn.commit()
+
+    return jsonify({'status': 'success'})
+
+
+
+
+@app.route('/tasks/<int:task_id>/subtasks/<int:subtask_id>', methods=['DELETE'])
+def delete_subtask(task_id, subtask_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('DELETE FROM subtasks WHERE id = ? AND parent_task_id = ?', (subtask_id, task_id))
+    conn.commit()
+
+    return jsonify({'status': 'success'})
+
+
 
 
 
