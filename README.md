@@ -1,7 +1,7 @@
 
 # NeuroTask - Smart Task Manager
 
-![NeuroTask Demo](demo-screenshot.png) *Add screenshot later*
+![NeuroTask Demo](docs/demo-screenshot.png)
 
 A smart to-do list application with AI integration, priority management, and reminders. Designed for Raspberry Pi with web interface access.
 
