@@ -3,7 +3,6 @@
       x-data="mainApp()"
       x-init="init()"
       :class="{ 'dark': darkMode }">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -29,11 +28,11 @@
         }
     </style>
 </head>
-
 <body class="bg-gradient-to-br from-gray-100 to-gray-200 
              dark:from-gray-900 dark:to-gray-800 min-h-screen 
              text-gray-800 dark:text-gray-200">
 
+    <!-- Main container for tasks, subtasks, etc. -->
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         
         <!-- HEADER -->
@@ -57,28 +56,27 @@
             </button>
         </div>
 
-        <!-- =============================
-             COMBINED ADD TASK / AI FORM
-        ============================== -->
+        <!-- =========== COMBINED ADD TASK / AI FORM =========== -->
         <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-                Add Task (Manual) or Use AI
+                Add Task or Use AI
             </h2>
             <form @submit.prevent="addTask" class="space-y-4">
                 <!-- The same field can be a normal task or an AI prompt -->
                 <input x-model="newTask"
                        type="text"
-                       placeholder="Type a task or an AI prompt (e.g. items needed to cook jollof)"
+                       placeholder="Enter task description or AI prompt (e.g., items needed to cook jollof)"
                        class="w-full p-3 rounded-xl border border-gray-200 
                               dark:border-gray-700 bg-transparent 
                               focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-                <div class="grid grid-cols-2 gap-4">
+                <!-- Responsive grid for Date & Priority -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input x-model="newDueDate"
                            type="datetime-local"
                            class="p-3 rounded-xl border border-gray-200 
                                   dark:border-gray-700 bg-transparent">
-                    
+
                     <select x-model="newPriority"
                             class="p-2 rounded-xl border border-gray-200 
                                    dark:border-gray-700 bg-transparent">
@@ -88,7 +86,7 @@
                     </select>
                 </div>
 
-                <!-- Two buttons: manual add or AI auto-add -->
+                <!-- Two buttons: normal Add Task or AI Auto-Add -->
                 <div class="text-right flex gap-2 justify-end mt-2">
                     <!-- Manual Add Task -->
                     <button type="submit"
@@ -100,7 +98,7 @@
                             @click="aiAutoAdd()"
                             :disabled="isAILoading"
                             class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
-                      <span x-show="!isAILoading">🤖AI Auto-Add</span>
+                      <span x-show="!isAILoading">AI Auto-Add</span>
                       <span x-show="isAILoading" class="ai-loader">🌀</span>
                     </button>
                 </div>
@@ -145,10 +143,9 @@
           </div>
         </div>
 
-        <!-- =====================
-             TASK LIST (Subtasks)
-        ====================== -->
+        <!-- TASK LIST (including Subtasks) -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
+          <!-- Loop through main tasks -->
           <template x-for="task in tasks" :key="task.id">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
 
@@ -162,7 +159,7 @@
                 >
               </div>
 
-              <!-- Priority Badge -->
+              <!-- Priority Badge (top-right) -->
               <div class="absolute top-2 right-2 z-10">
                 <span :class="{
                     'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
@@ -177,15 +174,18 @@
               <!-- Main Task Content -->
               <div class="flex items-center justify-between w-full">
                 <div class="flex items-center gap-4 flex-1">
+                  <!-- Delete Main Task -->
                   <button @click="deleteTask(task.id)"
                           class="text-red-500 hover:text-red-600 transition-colors shrink-0">
                     ✕
                   </button>
+                  <!-- Task Title/Text -->
                   <span x-text="task.task"
                         class="text-gray-800 dark:text-gray-200 truncate"
                         :class="task.completed ? 'line-through text-gray-500' : ''">
                   </span>
                 </div>
+                <!-- Due Date -->
                 <div class="shrink-0">
                   <span x-text="new Date(task.due_date).toLocaleString()"
                         class="due-date text-sm text-gray-500 dark:text-gray-400">
@@ -193,13 +193,15 @@
                 </div>
               </div>
 
-              <!-- Subtasks -->
+              <!-- SUBTASK SECTION -->
               <div class="mt-4 pl-8 border-l border-gray-300 dark:border-gray-700">
                 <h4 class="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
                   Subtasks
                 </h4>
+                <!-- Existing subtasks -->
                 <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
                   <div class="flex items-center justify-between mb-2">
+                    <!-- Subtask checkbox + text -->
                     <div class="flex items-center gap-2">
                       <input 
                         type="checkbox"
@@ -212,6 +214,7 @@
                         :class="subtask.completed ? 'line-through text-gray-400' : ''"
                       ></span>
                     </div>
+                    <!-- Delete subtask -->
                     <button
                       @click="deleteSubtask(task.id, subtask.id)"
                       class="text-red-500 hover:text-red-700 text-sm"
@@ -220,7 +223,6 @@
                     </button>
                   </div>
                 </template>
-
                 <!-- Add new subtask -->
                 <div class="flex items-center gap-2 mt-3">
                   <input
@@ -241,26 +243,29 @@
                   </button>
                 </div>
               </div>
+              <!-- END SUBTASK SECTION -->
+
             </div>
           </template>
         </div>
+        <!-- END TASK LIST -->
     </div>
 
-    <!-- MAIN ALPINE COMPONENT SCRIPT -->
+    <!-- SINGLE ALPINE COMPONENT SCRIPT -->
     <script>
     function mainApp() {
       return {
         // Dark mode
         darkMode: false,
 
-        // Task properties
+        // Task data
         tasks: [],
         subtasks: {},
-        newTask: '',        // Shared with AI if user wants
+        newTask: '',
         newDueDate: '',
         newPriority: 'medium',
 
-        // AI auto-add
+        // AI auto-add data
         showAutoAddModal: false,
         aiAutoAddResult: { main_task: '', subtasks: [] },
         isAILoading: false,
@@ -281,7 +286,7 @@
             this.subtasks[t.id] = await this.fetchSubtasks(t.id);
           }
 
-          // Initialize notifications
+          // Notifications
           this.initNotifications();
         },
 
@@ -290,7 +295,7 @@
           localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
         },
 
-        // ============== TASKS ==============
+        // ================== TASK METHODS ==================
         async fetchTasks() {
           try {
             const resp = await fetch('/tasks');
@@ -314,9 +319,8 @@
         },
 
         async addTask() {
-          // Normal manual add
           if (!this.newTask.trim()) {
-            alert('Please enter a task or prompt!');
+            alert('Please enter a task or AI prompt!');
             return;
           }
           try {
@@ -329,16 +333,14 @@
                 priority: this.newPriority
               })
             });
-            if (!resp.ok) {
-              throw new Error('Failed to add task');
-            }
+            if (!resp.ok) throw new Error('Failed to add task');
 
             // Clear fields
             this.newTask = '';
             this.newDueDate = '';
             this.newPriority = 'medium';
 
-            // Refresh
+            // Refresh tasks + subtasks
             await this.refreshTasksWithSubtasks();
           } catch (err) {
             console.error('Add Task error:', err);
@@ -350,6 +352,7 @@
           try {
             const resp = await fetch(`/tasks/${taskId}`, { method: 'DELETE' });
             if (!resp.ok) throw new Error('Failed to delete task');
+
             this.tasks = this.tasks.filter(t => t.id !== taskId);
             delete this.subtasks[taskId];
           } catch (err) {
@@ -374,7 +377,7 @@
           }
         },
 
-        // ============== SUBTASKS ==============
+        // ================== SUBTASK METHODS ==================
         async addSubtask(taskId, text) {
           if (!text.trim()) {
             alert('Enter subtask text!');
@@ -409,7 +412,7 @@
             }
             subtask.completed = !subtask.completed;
           } catch (err) {
-            console.error('Toggle subtask error:', err);
+            console.error('Toggle subtask completion error:', err);
           }
         },
 
@@ -435,7 +438,90 @@
           }
         },
 
-        // ============== NOTIFICATIONS ==============
+        // ================== AI AUTO-ADD ==================
+        async aiAutoAdd() {
+          if (!this.newTask.trim()) {
+            alert('Please enter a task or AI prompt first!');
+            return;
+          }
+          try {
+            this.isAILoading = true;
+            const resp = await fetch('/ai/autogen', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: this.newTask })
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+              throw new Error(data.error || 'AI auto-add failed');
+            }
+
+            // Show AI result
+            this.aiAutoAddResult = data; // { main_task: "", subtasks: [...] }
+            this.showAutoAddModal = true;
+          } catch (err) {
+            console.error('AI Auto-Add error:', err);
+            alert('AI Auto-Add error: ' + err.message);
+          } finally {
+            this.isAILoading = false;
+          }
+        },
+
+        editAutoAdd() {
+          // Copy AI's main task into our newTask field
+          this.newTask = this.aiAutoAddResult.main_task;
+          this.showAutoAddModal = false;
+        },
+
+        async addAutoAdd() {
+          // 1) Create main task with user’s chosen date & priority
+          try {
+            const createResp = await fetch('/tasks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task: this.aiAutoAddResult.main_task,
+                due_date: this.newDueDate || new Date().toISOString(),
+                priority: this.newPriority
+              })
+            });
+            if (!createResp.ok) throw new Error('Failed to create main task');
+
+            // 2) Refresh tasks so we find the new ID
+            await this.refreshTasksWithSubtasks();
+
+            // Find newly created task by matching main_task
+            const newTask = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
+            if (!newTask) {
+              throw new Error('Could not locate newly created task');
+            }
+
+            // 3) Insert subtasks
+            if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
+              for (let item of this.aiAutoAddResult.subtasks) {
+                const subResp = await fetch(`/tasks/${newTask.id}/subtasks`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ subtask: item })
+                });
+                if (!subResp.ok) {
+                  console.error('Failed to add subtask:', item);
+                }
+              }
+              // Refresh subtasks
+              this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
+            }
+
+            // 4) Hide panel
+            this.showAutoAddModal = false;
+            alert('AI Auto-Add: Task + Subtasks created!');
+          } catch (err) {
+            console.error('AddAutoAdd error:', err);
+            alert('Error auto-adding task: ' + err.message);
+          }
+        },
+
+        // ================== NOTIFICATIONS ==================
         initNotifications() {
           if ('Notification' in window) {
             Notification.requestPermission().then(permission => {
@@ -478,95 +564,9 @@
             task: "Test Notification",
             due_date: new Date().toISOString()
           });
-        },
-
-        // ============== AI AUTO-ADD ==============
-        async aiAutoAdd() {
-          if (!this.newTask.trim()) {
-            alert('Please enter a task or AI prompt first!');
-            return;
-          }
-          try {
-            this.isAILoading = true;
-            const resp = await fetch('/ai/autogen', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ prompt: this.newTask })
-            });
-            const data = await resp.json();
-            if (!resp.ok) {
-              throw new Error(data.error || 'AI auto-add failed');
-            }
-
-            // Store the AI result
-            this.aiAutoAddResult = data; // { main_task: "...", subtasks: [...] }
-            this.showAutoAddModal = true;
-          } catch (err) {
-            console.error('AI Auto-Add error:', err);
-            alert('AI Auto-Add error: ' + err.message);
-          } finally {
-            this.isAILoading = false;
-          }
-        },
-
-        editAutoAdd() {
-          // Overwrite newTask with the AI's main_task
-          this.newTask = this.aiAutoAddResult.main_task;
-          // We keep newDueDate/newPriority as is, since user already set them
-          this.showAutoAddModal = false;
-        },
-
-        async addAutoAdd() {
-          // 1) Create main task
-          try {
-            const createResp = await fetch('/tasks', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                task: this.aiAutoAddResult.main_task,
-                due_date: this.newDueDate || new Date().toISOString(),
-                priority: this.newPriority || 'medium'
-              })
-            });
-            if (!createResp.ok) throw new Error('Failed to create main task');
-
-            // 2) Refresh tasks so we can locate the new ID
-            await this.refreshTasksWithSubtasks();
-
-            // Find the new task by matching main_task
-            const newlyCreated = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
-            if (!newlyCreated) {
-              throw new Error('Could not find newly created task');
-            }
-
-            // 3) Insert subtasks
-            if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
-              for (let item of this.aiAutoAddResult.subtasks) {
-                const subResp = await fetch(`/tasks/${newlyCreated.id}/subtasks`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ subtask: item })
-                });
-                if (!subResp.ok) {
-                  console.error('Failed to add subtask:', item);
-                }
-              }
-              // Refresh
-              this.subtasks[newlyCreated.id] = await this.fetchSubtasks(newlyCreated.id);
-            }
-
-            // 4) Hide panel
-            this.showAutoAddModal = false;
-            alert('AI Auto-Add: Task + Subtasks created!');
-
-          } catch (err) {
-            console.error('AddAutoAdd error:', err);
-            alert('Error auto-adding task: ' + err.message);
-          }
         }
       };
     }
     </script>
 </body>
 </html>
-
