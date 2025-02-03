@@ -7,12 +7,12 @@ A smart to-do list application with AI integration, priority management, and rem
 
 ## Features
 
-- 📝 Create tasks with due dates and priorities (Low/Medium/High)
-- 🤖 AI-powered task suggestions via OpenAI
-- 🎨 Dark/Light mode toggle
-- 🔔 Desktop notifications for due tasks
-- ✅ Task completion tracking
-- 📱 Mobile-friendly interface
+- 📝 Create tasks with due dates and priorities (Low/Medium/High)  
+- 🤖 AI-powered task creation (auto-add main task + subtasks from a single prompt)  
+- 🎨 Dark/Light mode toggle  
+- 🔔 Desktop notifications for due tasks  
+- ✅ Task completion tracking  
+- 📱 Mobile-friendly interface (responsive grid prevents field overlap)  
 - 🔄 Real-time sync across devices
 
 ## Prerequisites
@@ -28,7 +28,7 @@ A smart to-do list application with AI integration, priority management, and rem
 1. Clone Repository
 ```bash
 ssh pi@<your-pi-ip>
-git clone https://github.com/<your-username>/neuro-task.git
+git clone https://github.com/nastradacha/neuro-task.git
 cd neuro-task
 ```
 2. Python Setup
@@ -84,10 +84,10 @@ sudo systemctl start neurotask.service
 ## Usage
 
 - Access web interface: `http://<your-pi-ip>:5000`
-- Add tasks with priority levels
-- Use AI suggestions via the 🤖 button
+- Add tasks by typing a description, date/time, and priority
+- Or enter an AI prompt (e.g. “items needed to cook jollof”) and click AI Auto-Add
 - Toggle dark mode with 🌓 button
-- Manage tasks with checkboxes and delete button
+- Manage tasks/subtasks with checkboxes, delete button, etc
 
 ## Troubleshooting
 
@@ -136,23 +136,35 @@ neuro-task/
 
 ## Database Schema
 ```sql
-CREATE TABLE tasks(
-  id INTEGER PRIMARY KEY,
-  task TEXT,
-  due_date TEXT,
-  priority TEXT CHECK(priority IN ('low', 'medium', 'high')),
-  completed BOOLEAN DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+CREATE TABLE tasks
+             (id INTEGER PRIMARY KEY,
+              task TEXT,
+              due_date TEXT,
+              priority TEXT CHECK(priority IN ('low', 'medium', 'high')) DEFAULT 'medium',
+              status TEXT DEFAULT 'pending', completed BOOLEAN DEFAULT 0);
+
+CREATE TABLE subtasks (
+        id INTEGER PRIMARY KEY,
+        parent_task_id INTEGER NOT NULL,
+        subtask TEXT NOT NULL,
+        completed BOOLEAN DEFAULT 0,
+        FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
+    );
 ```
 
 ## API Endpoints
-| Endpoint        | Method | Description            |
-|-----------------|--------|------------------------|
-| `/tasks`        | GET    | List all tasks         |
-| `/tasks`        | POST   | Create new task        |
-| `/tasks/<id>`   | DELETE | Delete task            |
-| `/ai/suggest`   | POST   | Get AI suggestions     |
+| Endpoint                   | Method  | Description                           |
+|----------------------------|---------|---------------------------------------|
+| `/tasks`                   | GET     | List all tasks                        |
+| `/tasks`                   | POST    | Create new task                       |
+| `/tasks/<id>`              | DELETE  | Delete task                           |
+| `/tasks/<id>/complete`     | PATCH   | Toggle task completion                |
+| `/tasks/<id>/subtasks`     | GET     | List subtasks for given task          |
+| `/tasks/<id>/subtasks`     | POST    | Create a new subtask for a task       |
+| `/tasks/<id>/subtasks/<id>`| DELETE  | Delete a subtask                      |
+| `/ai/autogen`              | POST    | AI auto-add main task + subtasks      |
+
+
 
 ## Maintenance Tips
 
