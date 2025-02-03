@@ -28,11 +28,11 @@
         }
     </style>
 </head>
+
 <body class="bg-gradient-to-br from-gray-100 to-gray-200 
              dark:from-gray-900 dark:to-gray-800 min-h-screen 
              text-gray-800 dark:text-gray-200">
 
-    <!-- Main container for tasks, subtasks, etc. -->
     <div class="container mx-auto px-4 py-8 max-w-3xl">
         
         <!-- HEADER -->
@@ -40,7 +40,7 @@
             <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 NeuroTask
             </h1>
-            <!-- Dark Mode Toggle Button -->
+            <!-- Dark Mode Toggle -->
             <button @click="toggleDarkMode()"
                     class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                     title="Toggle Dark Mode">
@@ -59,24 +59,24 @@
         <!-- =========== COMBINED ADD TASK / AI FORM =========== -->
         <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
             <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-                Add Task or Use AI
+                Add Task (Manual) or Use AI
             </h2>
             <form @submit.prevent="addTask" class="space-y-4">
-                <!-- The same field can be a normal task or an AI prompt -->
+                <!-- Shared field for manual or AI prompt -->
                 <input x-model="newTask"
                        type="text"
-                       placeholder="Enter task description or AI prompt (e.g., items needed to cook jollof)"
+                       placeholder="Type a task or AI prompt (e.g., items needed to cook jollof)"
                        class="w-full p-3 rounded-xl border border-gray-200 
                               dark:border-gray-700 bg-transparent 
                               focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-                <!-- Responsive grid for Date & Priority -->
+                <!-- Responsive grid for date & priority -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input x-model="newDueDate"
                            type="datetime-local"
                            class="p-3 rounded-xl border border-gray-200 
                                   dark:border-gray-700 bg-transparent">
-
+                    
                     <select x-model="newPriority"
                             class="p-2 rounded-xl border border-gray-200 
                                    dark:border-gray-700 bg-transparent">
@@ -86,7 +86,7 @@
                     </select>
                 </div>
 
-                <!-- Two buttons: normal Add Task or AI Auto-Add -->
+                <!-- Two buttons: manual Add Task or AI Auto-Add -->
                 <div class="text-right flex gap-2 justify-end mt-2">
                     <!-- Manual Add Task -->
                     <button type="submit"
@@ -130,12 +130,12 @@
             <p><strong>Priority:</strong> <span x-text="newPriority"></span></p>
           </div>
           <div class="mt-4 flex gap-4">
-            <!-- Edit in Form -> Overwrite newTask with main_task, let user finalize -->
+            <!-- Edit in Form -> Overwrite newTask with AI's main_task -->
             <button @click="editAutoAdd()" 
                     class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">
               Edit in Form
             </button>
-            <!-- Add Immediately -> Insert task with newDueDate/newPriority -->
+            <!-- Add Immediately -> Insert the AI main task + subtasks using newDueDate/newPriority -->
             <button @click="addAutoAdd()"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
               Add Immediately
@@ -143,10 +143,42 @@
           </div>
         </div>
 
-        <!-- TASK LIST (including Subtasks) -->
+        <!-- FILTER & SORT CONTROLS -->
+        <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
+          <!-- Search Input -->
+          <input
+            x-model="searchQuery"
+            type="text"
+            placeholder="Search tasks..."
+            class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto"
+          >
+
+          <!-- Priority Filter -->
+          <select
+            x-model="filterPriority"
+            class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
+          >
+            <option value="">All Priorities</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+
+          <!-- Sort Option -->
+          <select
+            x-model="sortOption"
+            class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
+          >
+            <option value="dueAsc">Due Date (Asc)</option>
+            <option value="dueDesc">Due Date (Desc)</option>
+            <option value="priorityDesc">Priority (High→Low)</option>
+            <option value="priorityAsc">Priority (Low→High)</option>
+          </select>
+        </div>
+
+        <!-- TASK LIST (filtered & sorted) -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
-          <!-- Loop through main tasks -->
-          <template x-for="task in tasks" :key="task.id">
+          <template x-for="task in filteredAndSortedTasks()" :key="task.id">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
 
               <!-- Main Task Checkbox -->
@@ -251,37 +283,44 @@
         <!-- END TASK LIST -->
     </div>
 
-    <!-- SINGLE ALPINE COMPONENT SCRIPT -->
+    <!-- MAIN ALPINE COMPONENT SCRIPT -->
     <script>
     function mainApp() {
       return {
         // Dark mode
         darkMode: false,
 
-        // Task data
+        // TASK DATA
         tasks: [],
         subtasks: {},
         newTask: '',
         newDueDate: '',
         newPriority: 'medium',
 
-        // AI auto-add data
+        // AI AUTO-ADD
         showAutoAddModal: false,
         aiAutoAddResult: { main_task: '', subtasks: [] },
         isAILoading: false,
 
-        // Notifications
+        // FILTER & SORT
+        searchQuery: '',
+        filterPriority: '',
+        sortOption: 'dueAsc',
+
+        // NOTIFICATIONS
         notifiedTasks: new Set(),
         notificationInterval: null,
 
+        // =============================
+        // INIT
+        // =============================
         async init() {
-          // Load theme
+          // Load theme preference
           const storedTheme = localStorage.getItem('theme');
           this.darkMode = (storedTheme === 'dark');
 
-          // Fetch tasks
+          // Fetch tasks & subtasks
           this.tasks = await this.fetchTasks();
-          // Fetch subtasks
           for (let t of this.tasks) {
             this.subtasks[t.id] = await this.fetchSubtasks(t.id);
           }
@@ -295,7 +334,9 @@
           localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
         },
 
-        // ================== TASK METHODS ==================
+        // =============================
+        // API / TASK METHODS
+        // =============================
         async fetchTasks() {
           try {
             const resp = await fetch('/tasks');
@@ -335,12 +376,12 @@
             });
             if (!resp.ok) throw new Error('Failed to add task');
 
-            // Clear fields
+            // Reset fields
             this.newTask = '';
             this.newDueDate = '';
             this.newPriority = 'medium';
 
-            // Refresh tasks + subtasks
+            // Refresh
             await this.refreshTasksWithSubtasks();
           } catch (err) {
             console.error('Add Task error:', err);
@@ -377,7 +418,6 @@
           }
         },
 
-        // ================== SUBTASK METHODS ==================
         async addSubtask(taskId, text) {
           if (!text.trim()) {
             alert('Enter subtask text!');
@@ -438,7 +478,9 @@
           }
         },
 
-        // ================== AI AUTO-ADD ==================
+        // =============================
+        // AI AUTO-ADD
+        // =============================
         async aiAutoAdd() {
           if (!this.newTask.trim()) {
             alert('Please enter a task or AI prompt first!');
@@ -468,13 +510,13 @@
         },
 
         editAutoAdd() {
-          // Copy AI's main task into our newTask field
+          // Copy AI's main_task to newTask
           this.newTask = this.aiAutoAddResult.main_task;
           this.showAutoAddModal = false;
         },
 
         async addAutoAdd() {
-          // 1) Create main task with user’s chosen date & priority
+          // Create main task using newDueDate/newPriority
           try {
             const createResp = await fetch('/tasks', {
               method: 'POST',
@@ -487,7 +529,7 @@
             });
             if (!createResp.ok) throw new Error('Failed to create main task');
 
-            // 2) Refresh tasks so we find the new ID
+            // Refresh tasks
             await this.refreshTasksWithSubtasks();
 
             // Find newly created task by matching main_task
@@ -496,7 +538,7 @@
               throw new Error('Could not locate newly created task');
             }
 
-            // 3) Insert subtasks
+            // Insert subtasks
             if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
               for (let item of this.aiAutoAddResult.subtasks) {
                 const subResp = await fetch(`/tasks/${newTask.id}/subtasks`, {
@@ -508,11 +550,10 @@
                   console.error('Failed to add subtask:', item);
                 }
               }
-              // Refresh subtasks
+              // Refresh
               this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
             }
 
-            // 4) Hide panel
             this.showAutoAddModal = false;
             alert('AI Auto-Add: Task + Subtasks created!');
           } catch (err) {
@@ -521,7 +562,54 @@
           }
         },
 
-        // ================== NOTIFICATIONS ==================
+        // =============================
+        // SEARCH / FILTER / SORT
+        // =============================
+        searchQuery: '',
+        filterPriority: '',
+        sortOption: 'dueAsc',
+
+        filteredAndSortedTasks() {
+          // 1) Filter
+          let filtered = this.tasks.filter(task => {
+            const matchesSearch = this.searchQuery
+              ? task.task.toLowerCase().includes(this.searchQuery.toLowerCase())
+              : true;
+
+            const matchesPriority = this.filterPriority
+              ? (task.priority === this.filterPriority)
+              : true;
+
+            return matchesSearch && matchesPriority;
+          });
+
+          // 2) Sort
+          filtered.sort((a, b) => {
+            if (this.sortOption === 'dueAsc') {
+              return new Date(a.due_date) - new Date(b.due_date);
+            } else if (this.sortOption === 'dueDesc') {
+              return new Date(b.due_date) - new Date(a.due_date);
+            } else if (this.sortOption === 'priorityDesc') {
+              return this.priorityValue(b.priority) - this.priorityValue(a.priority);
+            } else if (this.sortOption === 'priorityAsc') {
+              return this.priorityValue(a.priority) - this.priorityValue(b.priority);
+            }
+            return 0;
+          });
+
+          return filtered;
+        },
+
+        priorityValue(priority) {
+          if (priority === 'high') return 3;
+          if (priority === 'medium') return 2;
+          if (priority === 'low') return 1;
+          return 0;
+        },
+
+        // =============================
+        // NOTIFICATIONS
+        // =============================
         initNotifications() {
           if ('Notification' in window) {
             Notification.requestPermission().then(permission => {
@@ -570,3 +658,4 @@
     </script>
 </body>
 </html>
+
