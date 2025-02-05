@@ -3,10 +3,11 @@
       x-data="mainApp()"
       x-init="init()"
       :class="{ 'dark': darkMode }">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>NeuroTask</title>
+  <title>NeuroTask - All Features</title>
 
   <!-- Tailwind CSS build -->
   <link href="/static/output.css" rel="stylesheet">
@@ -16,6 +17,9 @@
 
   <!-- htmx (for SSE and partial page updates) -->
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+  <!-- SortableJS (for drag and drop) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <style>
     [x-cloak] { display: none !important; }
@@ -34,328 +38,369 @@
              text-gray-800 dark:text-gray-200">
 
   <div class="container mx-auto px-4 py-8 max-w-3xl">
-      
-      <!-- HEADER -->
-      <div class="flex justify-between items-center mb-12">
-          <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              NeuroTask
-          </h1>
-          <!-- Dark Mode Toggle -->
-          <button @click="toggleDarkMode()"
-                  class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  title="Toggle Dark Mode">
-              🌙
-          </button>
-      </div>
 
-      <!-- Test Notifications Button -->
-      <div class="mb-4 text-right">
-          <button @click="testNotification"
-                  class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-              Test Notifications
-          </button>
-      </div>
+    <!-- HEADER -->
+    <div class="flex justify-between items-center mb-12">
+      <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        NeuroTask
+      </h1>
+      <!-- Dark Mode Toggle -->
+      <button @click="toggleDarkMode()"
+              class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              title="Toggle Dark Mode">
+        🌙
+      </button>
+    </div>
 
-      <!-- COMBINED ADD TASK / AI FORM -->
-      <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
-          <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
-              Add Task (Manual) or Use AI
-          </h2>
-          <form @submit.prevent="addTask" class="space-y-4">
-              <!-- Single field for manual or AI prompt -->
-              <input x-model="newTask"
-                     type="text"
-                     placeholder="Type a task or AI prompt (e.g., items needed for jollof)"
-                     class="w-full p-3 rounded-xl border border-gray-200 
-                            dark:border-gray-700 bg-transparent 
-                            focus:outline-none focus:ring-2 focus:ring-blue-500">
+    <!-- Test Notifications Button -->
+    <div class="mb-4 text-right">
+      <button @click="testNotification"
+              class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        Test Notifications
+      </button>
+    </div>
 
-              <!-- Responsive grid for date & priority -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input x-model="newDueDate"
-                         type="datetime-local"
-                         class="p-3 rounded-xl border border-gray-200 
-                                dark:border-gray-700 bg-transparent">
-                  
-                  <select x-model="newPriority"
-                          class="p-2 rounded-xl border border-gray-200 
-                                 dark:border-gray-700 bg-transparent">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                  </select>
-              </div>
+    <!-- ADD TASK (MANUAL OR AI) FORM -->
+    <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
+      <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+        Add Task (Manual) or Use AI
+      </h2>
+      <form @submit.prevent="addTask" class="space-y-4">
+        
+        <!-- Single field for manual or AI prompt -->
+        <input x-model="newTask"
+               type="text"
+               placeholder="Type a task or AI prompt (e.g., items needed for jollof)"
+               class="w-full p-3 rounded-xl border border-gray-200 
+                      dark:border-gray-700 bg-transparent 
+                      focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-              <div class="text-right flex gap-2 justify-end mt-2">
-                  <!-- Manual Add Task -->
-                  <button type="submit"
-                          class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-xl transition-all">
-                      Add Task 🚀
-                  </button>
-                  <!-- AI Auto-Add -->
-                  <button type="button"
-                          @click="aiAutoAdd()"
-                          :disabled="isAILoading"
-                          class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
-                    <span x-show="!isAILoading">AI Auto-Add</span>
-                    <span x-show="isAILoading" class="ai-loader">🌀</span>
-                  </button>
-              </div>
-          </form>
-      </div>
-
-      <!-- AI PROPOSED TASK PANEL -->
-      <div x-show="showAutoAddModal"
-           x-cloak
-           class="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-xl shadow">
-        <h3 class="text-lg font-bold mb-2 text-gray-800 dark:text-gray-200">
-          AI Proposed Task
-        </h3>
-        <div class="mb-2">
-          <strong>Main Task:</strong>
-          <span x-text="aiAutoAddResult.main_task" class="ml-2 text-sm"></span>
+        <!-- Responsive grid for date & priority -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input x-model="newDueDate"
+                 type="datetime-local"
+                 class="p-3 rounded-xl border border-gray-200 
+                        dark:border-gray-700 bg-transparent">
+          
+          <select x-model="newPriority"
+                  class="p-2 rounded-xl border border-gray-200 
+                         dark:border-gray-700 bg-transparent">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
         </div>
-        <div class="mb-2">
-          <strong>Subtasks:</strong>
-          <template x-for="(sub, idx) in aiAutoAddResult.subtasks" :key="idx">
-            <div class="ml-4 list-disc" x-text="sub"></div>
-          </template>
-          <template x-if="aiAutoAddResult.subtasks.length === 0">
-            <div class="ml-4 text-xs italic">(No subtasks)</div>
-          </template>
+
+        <!-- Category Field -->
+        <div>
+          <label for="category" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+            Category (Optional)
+          </label>
+          <input x-model="newCategory"
+                 id="category"
+                 type="text"
+                 placeholder="e.g., Work, Personal, Shopping..."
+                 class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
         </div>
-        <div class="text-sm">
-          <p><strong>Date:</strong> <span x-text="newDueDate || '(none)'"></span></p>
-          <p><strong>Priority:</strong> <span x-text="newPriority"></span></p>
-        </div>
-        <div class="mt-4 flex gap-4">
-          <!-- Edit in Form -> Overwrite newTask with AI's main_task -->
-          <button @click="editAutoAdd()" 
-                  class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">
-            Edit in Form
+
+        <div class="text-right flex gap-2 justify-end mt-2">
+          <!-- Manual Add Task -->
+          <button type="submit"
+                  class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-xl transition-all">
+            Add Task 🚀
           </button>
-          <!-- Add Immediately -> Insert AI main task + subtasks -->
-          <button @click="addAutoAdd()"
-                  class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
-            Add Immediately
+
+          <!-- AI Auto-Add -->
+          <button type="button"
+                  @click="aiAutoAdd()"
+                  :disabled="isAILoading"
+                  class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
+            <span x-show="!isAILoading">🤖AI Auto-Add</span>
+            <span x-show="isAILoading" class="ai-loader">🌀</span>
           </button>
         </div>
+      </form>
+    </div>
+
+    <!-- AI PROPOSED TASK PANEL -->
+    <div x-show="showAutoAddModal"
+         x-cloak
+         class="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-xl shadow">
+      <h3 class="text-lg font-bold mb-2 text-gray-800 dark:text-gray-200">
+        AI Proposed Task
+      </h3>
+      <div class="mb-2">
+        <strong>Main Task:</strong>
+        <span x-text="aiAutoAddResult.main_task" class="ml-2 text-sm"></span>
       </div>
-
-      <!-- FILTER & SORT CONTROLS -->
-      <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
-        <!-- Search Input -->
-        <input
-          x-model="searchQuery"
-          type="text"
-          placeholder="Search tasks..."
-          class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto"
-        >
-        <!-- Priority Filter -->
-        <select
-          x-model="filterPriority"
-          class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
-        >
-          <option value="">All Priorities</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-        <!-- Sort Option -->
-        <select
-          x-model="sortOption"
-          class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
-        >
-          <option value="dueAsc">Due Date (Asc)</option>
-          <option value="dueDesc">Due Date (Desc)</option>
-          <option value="priorityDesc">Priority (High→Low)</option>
-          <option value="priorityAsc">Priority (Low→High)</option>
-        </select>
-      </div>
-
-      <!-- TASK LIST -->
-      <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
-        <template x-for="task in filteredAndSortedTasks()" :key="task.id">
-          <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow">
-
-            <!-- ROW 1: CHECKBOX / DELETE / TASK NAME -->
-            <div class="flex items-center gap-3 mb-1">
-              <!-- Completion Checkbox -->
-              <input
-                type="checkbox"
-                :checked="task.completed"
-                @change="toggleCompletion(task.id, $event.target.checked)"
-                class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-              >
-              <!-- Delete Main Task -->
-              <button @click="deleteTask(task.id)"
-                      class="text-red-500 hover:text-red-600 transition-colors shrink-0">
-                ✕
-              </button>
-              <!-- Task Title (long text won't overlap date) -->
-              <span x-text="task.task"
-                    class="text-gray-800 dark:text-gray-200 truncate flex-1"
-                    :class="task.completed ? 'line-through text-gray-500' : ''">
-              </span>
-            </div>
-
-            <!-- ROW 2: DATE + PRIORITY BADGE -->
-            <div class="flex items-center justify-between flex-wrap text-sm text-gray-500 dark:text-gray-400 mb-2">
-              <!-- Due Date -->
-              <span class="mr-2"
-                    x-text="new Date(task.due_date).toLocaleString()">
-              </span>
-              <!-- Priority Badge -->
-              <span :class="{
-                'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
-                'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
-                'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
-              }"
-              class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap">
-                <span x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
-              </span>
-            </div>
-
-            <!-- ROW 3: PROGRESS + COLLAPSE BUTTON -->
-            <div class="flex items-center justify-between mb-2">
-              <!-- Subtask progress bar -->
-              <div class="flex flex-col w-full pr-2">
-                <!-- "3/5 (60%)" text -->
-                <div class="text-xs mb-1">
-                  <span x-text="subtaskProgress(task.id).completed"></span>/
-                  <span x-text="subtaskProgress(task.id).total"></span>
-                  (<span x-text="subtaskProgress(task.id).percent"></span>%)
-                </div>
-                <!-- Bar background -->
-                <div class="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
-                  <!-- Bar fill -->
-                  <div class="bg-blue-600 h-2"
-                       :style="{ width: subtaskProgress(task.id).percent + '%' }">
-                  </div>
-                </div>
-              </div>
-              <!-- Collapse/Expand Button -->
-              <button @click="toggleSubtasks(task.id)"
-                      class="text-sm text-gray-600 dark:text-gray-300 hover:underline">
-                <span x-text="collapsedTaskIds.has(task.id) ? 'Show Subtasks' : 'Hide Subtasks'"></span>
-              </button>
-            </div>
-
-            <!-- ROW 4: SUBTASK SECTION -->
-            <div class="pl-8 border-l border-gray-300 dark:border-gray-700"
-                 x-show="!collapsedTaskIds.has(task.id)"
-                 x-transition>
-              <!-- Existing subtasks -->
-              <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
-                <div class="flex items-center justify-between mb-2">
-                  <!-- Subtask checkbox + text -->
-                  <div class="flex items-center gap-2">
-                    <input 
-                      type="checkbox"
-                      :checked="subtask.completed"
-                      @change="toggleSubtaskCompletion(task.id, subtask)"
-                      class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                    >
-                    <span 
-                      x-text="subtask.subtask"
-                      :class="subtask.completed ? 'line-through text-gray-400' : ''"
-                    ></span>
-                  </div>
-                  <!-- Delete subtask -->
-                  <button
-                    @click="deleteSubtask(task.id, subtask.id)"
-                    class="text-red-500 hover:text-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </template>
-              <!-- Add new subtask -->
-              <div class="flex items-center gap-2 mt-3">
-                <input
-                  x-ref="subtaskInput"
-                  type="text"
-                  placeholder="Add subtask..."
-                  class="w-full p-2 border rounded-md 
-                         dark:bg-gray-900 dark:text-white"
-                >
-                <!-- Lighter Blue for Subtask Button -->
-                <button
-                  @click="
-                    addSubtask(task.id, $refs.subtaskInput.value);
-                    $refs.subtaskInput.value = '';
-                  "
-                  class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md"
-                >
-                  ➕
-                </button>
-              </div>
-            </div>
-            <!-- END SUBTASK SECTION -->
-
-          </div>
+      <div class="mb-2">
+        <strong>Subtasks:</strong>
+        <template x-for="(sub, idx) in aiAutoAddResult.subtasks" :key="idx">
+          <div class="ml-4 list-disc" x-text="sub"></div>
+        </template>
+        <template x-if="aiAutoAddResult.subtasks.length === 0">
+          <div class="ml-4 text-xs italic">(No subtasks)</div>
         </template>
       </div>
-      <!-- END TASK LIST -->
+      <div class="text-sm">
+        <p><strong>Date:</strong> <span x-text="newDueDate || '(none)'"></span></p>
+        <p><strong>Priority:</strong> <span x-text="newPriority"></span></p>
+      </div>
+      <div class="mt-4 flex gap-4">
+        <!-- Edit in Form -> Overwrite newTask with AI's main_task -->
+        <button @click="editAutoAdd()" 
+                class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">
+          Edit in Form
+        </button>
+        <!-- Add Immediately -> Insert AI main task + subtasks -->
+        <button @click="addAutoAdd()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
+          Add Immediately
+        </button>
+      </div>
+    </div>
+
+    <!-- FILTER & SORT CONTROLS -->
+    <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
+
+      <!-- Search Input -->
+      <input
+        x-model="searchQuery"
+        type="text"
+        placeholder="Search tasks..."
+        class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto"
+      >
+
+      <!-- Priority Filter -->
+      <select
+        x-model="filterPriority"
+        class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
+      >
+        <option value="">All Priorities</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+
+      <!-- Category Filter -->
+      <input
+        x-model="filterCategory"
+        type="text"
+        placeholder="Filter by Category"
+        class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto"
+      >
+
+      <!-- Sort Option -->
+      <select
+        x-model="sortOption"
+        class="p-2 border rounded-md dark:bg-gray-900 dark:text-white"
+      >
+        <option value="dueAsc">Due Date (Asc)</option>
+        <option value="dueDesc">Due Date (Desc)</option>
+        <option value="priorityDesc">Priority (High→Low)</option>
+        <option value="priorityAsc">Priority (Low→High)</option>
+      </select>
+    </div>
+
+    <!-- TASK LIST with Drag & Drop: We'll wrap in a container ID for SortableJS -->
+    <div id="task-list" class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
+      <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
+        <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
+             :data-id="task.id">
+
+          <!-- ROW 1: CHECKBOX / DELETE / (TASK TEXT or EDIT FIELD) -->
+          <div class="flex items-center gap-3 mb-1">
+            <!-- Completion Checkbox -->
+            <input
+              type="checkbox"
+              :checked="task.completed"
+              @change="toggleCompletion(task.id, $event.target.checked)"
+              class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            >
+
+            <!-- Delete Main Task -->
+            <button @click="deleteTask(task.id)"
+                    class="text-red-500 hover:text-red-600 transition-colors shrink-0">
+              ✕
+            </button>
+
+            <!-- Inline Editing for Task Text -->
+            <div class="flex-1">
+              <!-- If not editing text, show clickable span -->
+              <span x-show="!editingStates[task.id]?.text"
+                    @click="enableTextEdit(task)"
+                    x-text="task.task"
+                    class="text-gray-800 dark:text-gray-200 cursor-pointer"
+                    :class="task.completed ? 'line-through text-gray-500' : ''">
+              </span>
+              <!-- If editing text, show input field -->
+              <input x-show="editingStates[task.id]?.text"
+                     x-model="editingBuffer[task.id]?.text"
+                     @blur="saveTextEdit(task)"
+                     class="border border-gray-300 rounded p-1 w-full dark:bg-gray-900 dark:text-white"
+                     type="text"
+                     x-cloak>
+            </div>
+          </div>
+
+          <!-- ROW 2: DATE + PRIORITY BADGE + CATEGORY (with inline editing) -->
+          <div class="flex flex-wrap items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
+            <!-- If not editing date, show clickable date -->
+            <span x-show="!editingStates[task.id]?.date"
+                  @click="enableDateEdit(task)"
+                  x-text="new Date(task.due_date).toLocaleString()"
+                  class="cursor-pointer mr-2">
+            </span>
+
+            <!-- If editing date, show input -->
+            <input x-show="editingStates[task.id]?.date"
+                   x-model="editingBuffer[task.id]?.date"
+                   type="datetime-local"
+                   @blur="saveDateEdit(task)"
+                   class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white"
+                   x-cloak>
+
+            <div class="flex items-center gap-2 mt-2 md:mt-0">
+              <!-- Priority Badge (not editing priority here, but you could do similar) -->
+              <span 
+                :class="{
+                  'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
+                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
+                  'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
+                }"
+                class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer"
+                @click="enablePriorityEdit(task)" 
+              >
+                <!-- Show priority or editing select if you want -->
+                <span x-show="!editingStates[task.id]?.priority"
+                      x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)">
+                </span>
+                <select x-show="editingStates[task.id]?.priority"
+                        x-model="editingBuffer[task.id]?.priority"
+                        @blur="savePriorityEdit(task)"
+                        x-cloak
+                        class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white">
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </span>
+
+              <!-- Category Badge (inline editing) -->
+              <span x-show="!editingStates[task.id]?.category && task.category"
+                    @click="enableCategoryEdit(task)"
+                    class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 cursor-pointer">
+                <span x-text="task.category"></span>
+              </span>
+              <!-- If no category, show a placeholder or nothing -->
+              <span x-show="!editingStates[task.id]?.category && !task.category"
+                    @click="enableCategoryEdit(task)"
+                    class="text-xs italic text-gray-400 cursor-pointer">
+                + Add Category
+              </span>
+              <!-- Category edit input -->
+              <input x-show="editingStates[task.id]?.category"
+                     x-model="editingBuffer[task.id]?.category"
+                     @blur="saveCategoryEdit(task)"
+                     class="border border-gray-300 rounded p-1 text-xs dark:bg-gray-900 dark:text-white"
+                     type="text"
+                     placeholder="Category"
+                     x-cloak>
+            </div>
+          </div>
+
+          <!-- ROW 3: PROGRESS + COLLAPSE BUTTON -->
+          <div class="flex items-center justify-between mb-2">
+            <!-- Subtask progress bar -->
+            <div class="flex flex-col w-full pr-2">
+              <!-- "3/5 (60%)" text -->
+              <div class="text-xs mb-1">
+                <span x-text="subtaskProgress(task.id).completed"></span>/
+                <span x-text="subtaskProgress(task.id).total"></span>
+                (<span x-text="subtaskProgress(task.id).percent"></span>%)
+              </div>
+              <!-- Bar background -->
+              <div class="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+                <!-- Bar fill -->
+                <div class="bg-blue-600 h-2"
+                     :style="{ width: subtaskProgress(task.id).percent + '%' }">
+                </div>
+              </div>
+            </div>
+            <!-- Collapse/Expand Button -->
+            <button @click="toggleSubtasks(task.id)"
+                    class="text-sm text-gray-600 dark:text-gray-300 hover:underline">
+              <span x-text="collapsedTaskIds.has(task.id) ? 'Show Subtasks' : 'Hide Subtasks'"></span>
+            </button>
+          </div>
+
+          <!-- ROW 4: SUBTASK SECTION -->
+          <div class="pl-8 border-l border-gray-300 dark:border-gray-700"
+               x-show="!collapsedTaskIds.has(task.id)"
+               x-transition>
+            <!-- Existing subtasks -->
+            <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
+              <div class="flex items-center justify-between mb-2">
+                <!-- Subtask checkbox + text -->
+                <div class="flex items-center gap-2">
+                  <input 
+                    type="checkbox"
+                    :checked="subtask.completed"
+                    @change="toggleSubtaskCompletion(task.id, subtask)"
+                    class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                  >
+                  <span 
+                    x-text="subtask.subtask"
+                    :class="subtask.completed ? 'line-through text-gray-400' : ''"
+                  ></span>
+                </div>
+                <!-- Delete subtask -->
+                <button
+                  @click="deleteSubtask(task.id, subtask.id)"
+                  class="text-red-500 hover:text-red-700 text-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </template>
+            <!-- Add new subtask -->
+            <div class="flex items-center gap-2 mt-3">
+              <input
+                x-ref="subtaskInput"
+                type="text"
+                placeholder="Add subtask..."
+                class="w-full p-2 border rounded-md 
+                       dark:bg-gray-900 dark:text-white"
+              >
+              <!-- Lighter Blue for Subtask Button -->
+              <button
+                @click="
+                  addSubtask(task.id, $refs.subtaskInput.value);
+                  $refs.subtaskInput.value = '';
+                "
+                class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md"
+              >
+                ➕
+              </button>
+            </div>
+          </div>
+          <!-- END SUBTASK SECTION -->
+
+        </div>
+      </template>
+    </div>
+    <!-- END TASK LIST -->
   </div>
 
   <!-- MAIN ALPINE COMPONENT SCRIPT -->
   <script>
   function mainApp() {
     return {
-      // Dark mode
+      // ========== DARK MODE ==========
       darkMode: false,
 
-      // Collapsible subtasks
+      // ========== SUBTASK COLLAPSE ==========
       collapsedTaskIds: new Set(),
-
-      // Task data
-      tasks: [],
-      subtasks: {},
-      newTask: '',
-      newDueDate: '',
-      newPriority: 'medium',
-
-      // AI auto-add
-      showAutoAddModal: false,
-      aiAutoAddResult: { main_task: '', subtasks: [] },
-      isAILoading: false,
-
-      // Search/filter/sort
-      searchQuery: '',
-      filterPriority: '',
-      sortOption: 'dueAsc',
-
-      // Notifications
-      notifiedTasks: new Set(),
-      notificationInterval: null,
-
-      // =============================
-      // INIT
-      // =============================
-      async init() {
-        // Load theme preference
-        const storedTheme = localStorage.getItem('theme');
-        this.darkMode = (storedTheme === 'dark');
-
-        // Fetch tasks & subtasks
-        this.tasks = await this.fetchTasks();
-        for (let t of this.tasks) {
-          this.subtasks[t.id] = await this.fetchSubtasks(t.id);
-        }
-
-        // Initialize notifications
-        this.initNotifications();
-      },
-
-      toggleDarkMode() {
-        this.darkMode = !this.darkMode;
-        localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
-      },
-
-      // =============================
-      // COLLAPSIBLE SUBTASKS
-      // =============================
       toggleSubtasks(taskId) {
         if (this.collapsedTaskIds.has(taskId)) {
           this.collapsedTaskIds.delete(taskId);
@@ -364,9 +409,85 @@
         }
       },
 
-      // =============================
-      // PROGRESS BAR FOR SUBTASKS
-      // =============================
+      // ========== TASK & SUBTASK DATA ==========
+      tasks: [],
+      subtasks: {},
+
+      newTask: '',
+      newDueDate: '',
+      newPriority: 'medium',
+      newCategory: '',
+
+      searchQuery: '',
+      filterPriority: '',
+      filterCategory: '',
+      sortOption: 'dueAsc',
+
+      // For inline editing states
+      editingStates: {},
+      editingBuffer: {},
+
+      // AI auto-add
+      showAutoAddModal: false,
+      aiAutoAddResult: { main_task: '', subtasks: [] },
+      isAILoading: false,
+
+      // Notifications
+      notifiedTasks: new Set(),
+      notificationInterval: null,
+
+      // ========== INIT ==========
+      async init() {
+        // Load theme
+        const storedTheme = localStorage.getItem('theme');
+        this.darkMode = (storedTheme === 'dark');
+
+        // Fetch tasks
+        this.tasks = await this.fetchTasks();
+        // fetch subtasks
+        for (let t of this.tasks) {
+          this.subtasks[t.id] = await this.fetchSubtasks(t.id);
+        }
+
+        // Initialize notifications
+        this.initNotifications();
+
+        // Initialize drag and drop
+        this.initDragAndDrop();
+      },
+
+      toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+      },
+
+      // ========== DRAG & DROP ==========
+      initDragAndDrop() {
+        const el = document.getElementById('task-list');
+        if (!el) return;
+
+        new Sortable(el, {
+          animation: 150,
+          onEnd: async (evt) => {
+            // reorder local tasks
+            const movedItem = this.tasks.splice(evt.oldIndex, 1)[0];
+            this.tasks.splice(evt.newIndex, 0, movedItem);
+
+            // After reordering, update each task's sort_order in DB
+            for (let i = 0; i < this.tasks.length; i++) {
+              this.tasks[i].sort_order = i; 
+              // patch to server
+              await fetch(`/tasks/${this.tasks[i].id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sort_order: i })
+              });
+            }
+          }
+        });
+      },
+
+      // ========== SUBTASK PROGRESS ==========
       subtaskProgress(taskId) {
         const subs = this.subtasks[taskId] || [];
         const total = subs.length;
@@ -375,11 +496,112 @@
         return { total, completed, percent };
       },
 
-      // =============================
-      // TASK / SUBTASK METHODS
-      // =============================
+      // ========== INLINE EDITING METHODS ==========
+      enableTextEdit(task) {
+        if (!this.editingStates[task.id]) {
+          this.editingStates[task.id] = {};
+        }
+        this.editingStates[task.id].text = true;
+
+        if (!this.editingBuffer[task.id]) {
+          this.editingBuffer[task.id] = {};
+        }
+        this.editingBuffer[task.id].text = task.task;
+      },
+
+      async saveTextEdit(task) {
+        const newText = this.editingBuffer[task.id]?.text || task.task;
+        const resp = await fetch(`/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task: newText })
+        });
+        if (resp.ok) {
+          task.task = newText; 
+        }
+        this.editingStates[task.id].text = false;
+      },
+
+      enableDateEdit(task) {
+        if (!this.editingStates[task.id]) {
+          this.editingStates[task.id] = {};
+        }
+        this.editingStates[task.id].date = true;
+
+        if (!this.editingBuffer[task.id]) {
+          this.editingBuffer[task.id] = {};
+        }
+        // Convert to datetime-local format
+        this.editingBuffer[task.id].date = (task.due_date || '').substring(0,16);
+      },
+
+      async saveDateEdit(task) {
+        const newDate = this.editingBuffer[task.id]?.date || task.due_date;
+        const resp = await fetch(`/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ due_date: newDate })
+        });
+        if (resp.ok) {
+          task.due_date = newDate; 
+        }
+        this.editingStates[task.id].date = false;
+      },
+
+      enablePriorityEdit(task) {
+        if (!this.editingStates[task.id]) {
+          this.editingStates[task.id] = {};
+        }
+        this.editingStates[task.id].priority = true;
+
+        if (!this.editingBuffer[task.id]) {
+          this.editingBuffer[task.id] = {};
+        }
+        this.editingBuffer[task.id].priority = task.priority;
+      },
+
+      async savePriorityEdit(task) {
+        const newPriority = this.editingBuffer[task.id]?.priority || task.priority;
+        const resp = await fetch(`/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priority: newPriority })
+        });
+        if (resp.ok) {
+          task.priority = newPriority;
+        }
+        this.editingStates[task.id].priority = false;
+      },
+
+      enableCategoryEdit(task) {
+        if (!this.editingStates[task.id]) {
+          this.editingStates[task.id] = {};
+        }
+        this.editingStates[task.id].category = true;
+
+        if (!this.editingBuffer[task.id]) {
+          this.editingBuffer[task.id] = {};
+        }
+        this.editingBuffer[task.id].category = task.category || '';
+      },
+
+      async saveCategoryEdit(task) {
+        const newCat = this.editingBuffer[task.id]?.category || '';
+        const resp = await fetch(`/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category: newCat })
+        });
+        if (resp.ok) {
+          task.category = newCat;
+        }
+        this.editingStates[task.id].category = false;
+      },
+
+      // ========== TASK / SUBTASK METHODS ==========
       async fetchTasks() {
         try {
+          // Server should ORDER BY sort_order, due_date
           const resp = await fetch('/tasks');
           if (!resp.ok) throw new Error('Failed to fetch tasks');
           return await resp.json();
@@ -412,15 +634,18 @@
             body: JSON.stringify({
               task: this.newTask,
               due_date: this.newDueDate || new Date().toISOString(),
-              priority: this.newPriority
+              priority: this.newPriority,
+              category: this.newCategory,
+              sort_order: this.tasks.length
             })
           });
           if (!resp.ok) throw new Error('Failed to add task');
 
-          // Clear fields
+          // Reset form
           this.newTask = '';
           this.newDueDate = '';
           this.newPriority = 'medium';
+          this.newCategory = '';
 
           // Refresh tasks
           await this.refreshTasksWithSubtasks();
@@ -519,9 +744,7 @@
         }
       },
 
-      // =============================
-      // AI AUTO-ADD
-      // =============================
+      // ========== AI AUTO-ADD ==========
       async aiAutoAdd() {
         if (!this.newTask.trim()) {
           alert('Please enter a task or AI prompt first!');
@@ -540,7 +763,7 @@
           }
 
           // Show AI result
-          this.aiAutoAddResult = data; // { main_task: "", subtasks: [...] }
+          this.aiAutoAddResult = data; 
           this.showAutoAddModal = true;
         } catch (err) {
           console.error('AI Auto-Add error:', err);
@@ -556,7 +779,6 @@
       },
 
       async addAutoAdd() {
-        // Create main task using newDueDate/newPriority
         try {
           const createResp = await fetch('/tasks', {
             method: 'POST',
@@ -564,7 +786,9 @@
             body: JSON.stringify({
               task: this.aiAutoAddResult.main_task,
               due_date: this.newDueDate || new Date().toISOString(),
-              priority: this.newPriority
+              priority: this.newPriority,
+              category: this.newCategory,
+              sort_order: this.tasks.length
             })
           });
           if (!createResp.ok) throw new Error('Failed to create main task');
@@ -572,7 +796,7 @@
           // Refresh tasks
           await this.refreshTasksWithSubtasks();
 
-          // Find newly created task by matching main_task
+          // Find newly created task
           const newTask = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
           if (!newTask) {
             throw new Error('Could not locate newly created task');
@@ -590,7 +814,6 @@
                 console.error('Failed to add subtask:', item);
               }
             }
-            // Refresh
             this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
           }
 
@@ -602,24 +825,22 @@
         }
       },
 
-      // =============================
-      // SEARCH / FILTER / SORT
-      // =============================
+      // ========== SEARCH / FILTER / SORT ==========
       filteredAndSortedTasks() {
-        // 1) Filter
         let filtered = this.tasks.filter(task => {
           const matchesSearch = this.searchQuery
             ? task.task.toLowerCase().includes(this.searchQuery.toLowerCase())
             : true;
-
           const matchesPriority = this.filterPriority
             ? (task.priority === this.filterPriority)
             : true;
+          const matchesCategory = this.filterCategory
+            ? (task.category || '').toLowerCase().includes(this.filterCategory.toLowerCase())
+            : true;
 
-          return matchesSearch && matchesPriority;
+          return matchesSearch && matchesPriority && matchesCategory;
         });
 
-        // 2) Sort
         filtered.sort((a, b) => {
           if (this.sortOption === 'dueAsc') {
             return new Date(a.due_date) - new Date(b.due_date);
@@ -643,9 +864,7 @@
         return 0;
       },
 
-      // =============================
-      // NOTIFICATIONS
-      // =============================
+      // ========== NOTIFICATIONS ==========
       initNotifications() {
         if ('Notification' in window) {
           Notification.requestPermission().then(permission => {

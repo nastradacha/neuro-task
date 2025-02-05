@@ -64,7 +64,7 @@ def get_tasks():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, task, due_date, priority, completed
+        SELECT id, task, due_date, priority, completed, category
         FROM tasks
         ORDER BY due_date
     ''')
@@ -74,21 +74,21 @@ def get_tasks():
 
 @app.route('/tasks', methods=['POST'])
 def create_task():
-    """
-    Create a new task with a given description, due_date, and priority.
-    Returns 400 if 'task' text is empty.
-    """
     data = request.json
     task_text = (data.get('task') or '').strip()
     if not task_text:
         return jsonify({'error': 'Task description is required'}), 400
 
+    due_date = data.get('due_date') or ''
+    priority = data.get('priority', 'medium')
+    category = data.get('category', '').strip()  # <--- read category
+
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO tasks (task, due_date, priority)
-        VALUES (?, ?, ?)
-    ''', (task_text, data['due_date'], data.get('priority', 'medium')))
+        INSERT INTO tasks (task, due_date, priority, category)
+        VALUES (?, ?, ?, ?)
+    ''', (task_text, due_date, priority, category))
     conn.commit()
 
     return jsonify({'status': 'success'}), 201
@@ -152,6 +152,40 @@ def get_due_tasks():
 
     tasks = [dict(row) for row in cursor.fetchall()]
     return jsonify(tasks)
+
+
+@app.route('/tasks/<int:task_id>', methods=['PATCH'])
+def update_task(task_id):
+    data = request.json
+    fields = []
+    values = []
+
+    if 'task' in data:
+        fields.append('task = ?')
+        values.append(data['task'])
+    if 'due_date' in data:
+        fields.append('due_date = ?')
+        values.append(data['due_date'])
+    if 'priority' in data:
+        fields.append('priority = ?')
+        values.append(data['priority'])
+    if 'category' in data:
+        fields.append('category = ?')
+        values.append(data['category'])
+
+    if not fields:
+        return jsonify({'error': 'No fields to update'}), 400
+
+    query = f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?"
+    values.append(task_id)
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(query, values)
+    conn.commit()
+
+    return jsonify({'status': 'success'})
+
 
 
 # -----------------------------------------------------------------------------
