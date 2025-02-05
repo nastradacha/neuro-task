@@ -28,7 +28,6 @@
         }
     </style>
 </head>
-
 <body class="bg-gradient-to-br from-gray-100 to-gray-200 
              dark:from-gray-900 dark:to-gray-800 min-h-screen 
              text-gray-800 dark:text-gray-200">
@@ -62,10 +61,10 @@
                 Add Task (Manual) or Use AI
             </h2>
             <form @submit.prevent="addTask" class="space-y-4">
-                <!-- Shared field for manual or AI prompt -->
+                <!-- Single field for manual or AI prompt -->
                 <input x-model="newTask"
                        type="text"
-                       placeholder="Type a task or AI prompt (e.g., items needed to cook jollof)"
+                       placeholder="Type a task or AI prompt (e.g., items needed for jollof)"
                        class="w-full p-3 rounded-xl border border-gray-200 
                               dark:border-gray-700 bg-transparent 
                               focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -86,7 +85,6 @@
                     </select>
                 </div>
 
-                <!-- Two buttons: manual Add Task or AI Auto-Add -->
                 <div class="text-right flex gap-2 justify-end mt-2">
                     <!-- Manual Add Task -->
                     <button type="submit"
@@ -98,7 +96,7 @@
                             @click="aiAutoAdd()"
                             :disabled="isAILoading"
                             class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
-                      <span x-show="!isAILoading">AI Auto-Add</span>
+                      <span x-show="!isAILoading">🤖AI Auto-Add</span>
                       <span x-show="isAILoading" class="ai-loader">🌀</span>
                     </button>
                 </div>
@@ -135,7 +133,7 @@
                     class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">
               Edit in Form
             </button>
-            <!-- Add Immediately -> Insert the AI main task + subtasks using newDueDate/newPriority -->
+            <!-- Add Immediately -> Insert AI main task + subtasks -->
             <button @click="addAutoAdd()"
                     class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">
               Add Immediately
@@ -152,7 +150,6 @@
             placeholder="Search tasks..."
             class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto"
           >
-
           <!-- Priority Filter -->
           <select
             x-model="filterPriority"
@@ -163,7 +160,6 @@
             <option value="medium">Medium</option>
             <option value="high">High</option>
           </select>
-
           <!-- Sort Option -->
           <select
             x-model="sortOption"
@@ -176,7 +172,7 @@
           </select>
         </div>
 
-        <!-- TASK LIST (filtered & sorted) -->
+        <!-- TASK LIST -->
         <div class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
           <template x-for="task in filteredAndSortedTasks()" :key="task.id">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
@@ -225,11 +221,35 @@
                 </div>
               </div>
 
+              <!-- PROGRESS + COLLAPSE BUTTONS -->
+              <div class="mt-3 flex items-center justify-between">
+                <!-- Subtask progress bar -->
+                <div class="flex flex-col w-full pr-2">
+                  <!-- "3/5 (60%)" text -->
+                  <div class="text-sm mb-1">
+                    <span x-text="subtaskProgress(task.id).completed"></span>/
+                    <span x-text="subtaskProgress(task.id).total"></span> 
+                    (<span x-text="subtaskProgress(task.id).percent"></span>%)
+                  </div>
+                  <!-- Bar background -->
+                  <div class="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+                    <!-- Bar fill -->
+                    <div class="bg-blue-600 h-2"
+                         :style="{ width: subtaskProgress(task.id).percent + '%' }">
+                    </div>
+                  </div>
+                </div>
+                <!-- Collapse/Expand Button -->
+                <button @click="toggleSubtasks(task.id)"
+                        class="text-sm text-gray-600 dark:text-gray-300 hover:underline">
+                  <span x-text="collapsedTaskIds.has(task.id) ? 'Show Subtasks' : 'Hide Subtasks'"></span>
+                </button>
+              </div>
+
               <!-- SUBTASK SECTION -->
-              <div class="mt-4 pl-8 border-l border-gray-300 dark:border-gray-700">
-                <h4 class="text-sm font-semibold mb-2 text-gray-700 dark:text-gray-300">
-                  Subtasks
-                </h4>
+              <div class="mt-3 pl-8 border-l border-gray-300 dark:border-gray-700"
+                   x-show="!collapsedTaskIds.has(task.id)"
+                   x-transition>
                 <!-- Existing subtasks -->
                 <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
                   <div class="flex items-center justify-between mb-2">
@@ -290,24 +310,27 @@
         // Dark mode
         darkMode: false,
 
-        // TASK DATA
+        // For collapsible subtasks:
+        collapsedTaskIds: new Set(),
+
+        // Task data
         tasks: [],
         subtasks: {},
         newTask: '',
         newDueDate: '',
         newPriority: 'medium',
 
-        // AI AUTO-ADD
+        // AI auto-add
         showAutoAddModal: false,
         aiAutoAddResult: { main_task: '', subtasks: [] },
         isAILoading: false,
 
-        // FILTER & SORT
+        // Search/filter/sort
         searchQuery: '',
         filterPriority: '',
         sortOption: 'dueAsc',
 
-        // NOTIFICATIONS
+        // Notifications
         notifiedTasks: new Set(),
         notificationInterval: null,
 
@@ -325,7 +348,7 @@
             this.subtasks[t.id] = await this.fetchSubtasks(t.id);
           }
 
-          // Notifications
+          // Initialize notifications
           this.initNotifications();
         },
 
@@ -335,7 +358,29 @@
         },
 
         // =============================
-        // API / TASK METHODS
+        // COLLAPSIBLE SUBTASKS
+        // =============================
+        toggleSubtasks(taskId) {
+          if (this.collapsedTaskIds.has(taskId)) {
+            this.collapsedTaskIds.delete(taskId);
+          } else {
+            this.collapsedTaskIds.add(taskId);
+          }
+        },
+
+        // =============================
+        // PROGRESS BAR FOR SUBTASKS
+        // =============================
+        subtaskProgress(taskId) {
+          const subs = this.subtasks[taskId] || [];
+          const total = subs.length;
+          const completed = subs.filter(s => s.completed).length;
+          const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+          return { total, completed, percent };
+        },
+
+        // =============================
+        // TASK / SUBTASK METHODS
         // =============================
         async fetchTasks() {
           try {
@@ -376,12 +421,12 @@
             });
             if (!resp.ok) throw new Error('Failed to add task');
 
-            // Reset fields
+            // Clear fields
             this.newTask = '';
             this.newDueDate = '';
             this.newPriority = 'medium';
 
-            // Refresh
+            // Refresh tasks
             await this.refreshTasksWithSubtasks();
           } catch (err) {
             console.error('Add Task error:', err);
@@ -452,7 +497,7 @@
             }
             subtask.completed = !subtask.completed;
           } catch (err) {
-            console.error('Toggle subtask completion error:', err);
+            console.error('Toggle subtask error:', err);
           }
         },
 
@@ -510,7 +555,6 @@
         },
 
         editAutoAdd() {
-          // Copy AI's main_task to newTask
           this.newTask = this.aiAutoAddResult.main_task;
           this.showAutoAddModal = false;
         },
@@ -565,10 +609,6 @@
         // =============================
         // SEARCH / FILTER / SORT
         // =============================
-        searchQuery: '',
-        filterPriority: '',
-        sortOption: 'dueAsc',
-
         filteredAndSortedTasks() {
           // 1) Filter
           let filtered = this.tasks.filter(task => {
@@ -658,4 +698,5 @@
     </script>
 </body>
 </html>
+
 
