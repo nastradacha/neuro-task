@@ -28,6 +28,7 @@
         }
     </style>
 </head>
+
 <body class="bg-gradient-to-br from-gray-100 to-gray-200 
              dark:from-gray-900 dark:to-gray-800 min-h-screen 
              text-gray-800 dark:text-gray-200">
@@ -96,7 +97,7 @@
                             @click="aiAutoAdd()"
                             :disabled="isAILoading"
                             class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
-                      <span x-show="!isAILoading">🤖AI Auto-Add</span>
+                      <span x-show="!isAILoading">AI Auto-Add</span>
                       <span x-show="isAILoading" class="ai-loader">🌀</span>
                     </button>
                 </div>
@@ -177,16 +178,6 @@
           <template x-for="task in filteredAndSortedTasks()" :key="task.id">
             <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow relative">
 
-              <!-- Main Task Checkbox -->
-              <div class="absolute left-2 top-1/2 -translate-y-1/2">
-                <input
-                  type="checkbox"
-                  :checked="task.completed"
-                  @change="toggleCompletion(task.id, $event.target.checked)"
-                  class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                >
-              </div>
-
               <!-- Priority Badge (top-right) -->
               <div class="absolute top-2 right-2 z-10">
                 <span :class="{
@@ -199,9 +190,18 @@
                 </span>
               </div>
 
-              <!-- Main Task Content -->
-              <div class="flex items-center justify-between w-full">
-                <div class="flex items-center gap-4 flex-1">
+              <!-- Main Row (Wrap so date can go to new line on mobile) -->
+              <div class="flex flex-wrap items-center justify-between w-full">
+                <!-- Left side: checkbox, delete, and task text -->
+                <div class="flex items-center gap-4 flex-1 min-w-0">
+                  <div>
+                    <input
+                      type="checkbox"
+                      :checked="task.completed"
+                      @change="toggleCompletion(task.id, $event.target.checked)"
+                      class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                    >
+                  </div>
                   <!-- Delete Main Task -->
                   <button @click="deleteTask(task.id)"
                           class="text-red-500 hover:text-red-600 transition-colors shrink-0">
@@ -210,13 +210,14 @@
                   <!-- Task Title/Text -->
                   <span x-text="task.task"
                         class="text-gray-800 dark:text-gray-200 truncate"
-                        :class="task.completed ? 'line-through text-gray-500' : ''">
+                        :class="task.completed ? 'line-through text-gray-500' : ''"
+                        style="min-width: 50px;">
                   </span>
                 </div>
-                <!-- Due Date -->
-                <div class="shrink-0">
+                <!-- Right side: Due Date -->
+                <div class="mt-2 md:mt-0 shrink-0">
                   <span x-text="new Date(task.due_date).toLocaleString()"
-                        class="due-date text-sm text-gray-500 dark:text-gray-400">
+                        class="text-sm text-gray-500 dark:text-gray-400">
                   </span>
                 </div>
               </div>
@@ -225,10 +226,10 @@
               <div class="mt-3 flex items-center justify-between">
                 <!-- Subtask progress bar -->
                 <div class="flex flex-col w-full pr-2">
-                  <!-- "3/5 (60%)" text -->
+                  <!-- e.g. "3/5 (60%)" text -->
                   <div class="text-sm mb-1">
                     <span x-text="subtaskProgress(task.id).completed"></span>/
-                    <span x-text="subtaskProgress(task.id).total"></span> 
+                    <span x-text="subtaskProgress(task.id).total"></span>
                     (<span x-text="subtaskProgress(task.id).percent"></span>%)
                   </div>
                   <!-- Bar background -->
@@ -239,6 +240,7 @@
                     </div>
                   </div>
                 </div>
+
                 <!-- Collapse/Expand Button -->
                 <button @click="toggleSubtasks(task.id)"
                         class="text-sm text-gray-600 dark:text-gray-300 hover:underline">
@@ -284,12 +286,13 @@
                     class="w-full p-2 border rounded-md 
                            dark:bg-gray-900 dark:text-white"
                   >
+                  <!-- Lighter Blue for Subtask Button -->
                   <button
                     @click="
                       addSubtask(task.id, $refs.subtaskInput.value);
                       $refs.subtaskInput.value = '';
                     "
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md"
                   >
                     ➕
                   </button>
@@ -698,5 +701,3 @@
     </script>
 </body>
 </html>
-
-
