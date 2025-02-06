@@ -13,36 +13,60 @@
 
 .due-date {
   @apply text-sm text-gray-500 dark:text-gray-400;
-  margin-right: 4rem; /* Add space to separate from the badge */
+  margin-right: 4rem;
 }
 
+/* Drag-and-drop improvements */
+.drag-handle {
+  @apply touch-none select-none; /* From original inline styles */
+  cursor: grab;
+  opacity: 0.6;
+  transition: opacity 0.2s, transform 0.2s;
+  padding: 8px 4px;
+  -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* Sortable.js visual feedback */
+.sortable-drag {
+  opacity: 0.8 !important;
+  transform: rotate(3deg) scale(1.02);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.sortable-ghost {
+  opacity: 0.4 !important;
+  background: rgba(147,197,253,0.1); /* blue-100 with opacity */
+}
+
+/* Mobile-specific adjustments */
+@media (pointer: coarse) {
+  .drag-handle {
+    padding: 12px 8px;
+    min-width: 44px;
+    font-size: 1.2em; /* Larger touch target */
+  }
+  
+  #task-list {
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+}
 
 /* Fix for flex alignment */
 .task-content {
   @apply flex items-center justify-between w-full;
 }
 
-
-
 .truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  
-  .z-10 {
-    z-index: 10;
-  }
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-
-  .drag-handle {
-    cursor: grab;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-  }
-
-  .drag-handle:active {
-    cursor: grabbing;
-    opacity: 1;
-  }
-  
+.z-10 { z-index: 10; }
