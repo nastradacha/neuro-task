@@ -93,6 +93,7 @@
     </div>
 
     <!-- Filters -->
+    <!-- (No changes here.) -->
     <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
       <input x-model="searchQuery" type="text" placeholder="Search tasks..." 
              class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
@@ -113,10 +114,10 @@
     </div>
 
     <!-- Task List -->
-    <div id="task-list" class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
+    <!-- Notice the change here: using flex flex-col gap-4 instead of space-y-4 -->
+    <div id="task-list" class="flex flex-col gap-4" hx-get="/tasks" hx-trigger="sse:task_update">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
-          <!-- Removed @touchstart.prevent and @mousedown.prevent -->
           <div class="drag-handle">☰</div>
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-1">
@@ -137,7 +138,6 @@
                     class="cursor-pointer mr-2"></span>
               <input x-show="editingStates[task.id]?.date" x-model="editingBuffer[task.id]?.date" type="datetime-local" 
                      @blur="saveDateEdit(task)" class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white" x-cloak>
-
               <div class="flex items-center gap-2 mt-2 md:mt-0">
                 <span :class="{
                   'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
@@ -153,7 +153,6 @@
                     <option value="high">High</option>
                   </select>
                 </span>
-
                 <span x-show="!editingStates[task.id]?.category && task.category" @click="enableCategoryEdit(task)" 
                       class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 cursor-pointer">
                   <span x-text="task.category"></span>
@@ -238,7 +237,7 @@
       },
 
       saveCollapsedState(taskId) {
-        // Optional: Save collapsed state to localStorage if desired.
+        // (Optional) Save collapsed state to localStorage if desired.
       },
 
       async init() {
@@ -275,24 +274,11 @@
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
-          forceFallback: isTouchDevice,
+          forceFallback: isTouchDevice, // use fallback only on touch devices
           fallbackTolerance: 5,
-          delay: isTouchDevice ? 100 : 0,
-          preventOnFilter: false,
-          touchStartThreshold: 15,
           dragClass: 'sortable-drag',
           ghostClass: 'sortable-ghost',
-          invertSwap: true,
-          direction: 'vertical',
-          onStart: (evt) => {
-            if (isTouchDevice) {
-              document.documentElement.style.overflow = 'hidden';
-            }
-          },
           onEnd: (evt) => {
-            if (isTouchDevice) {
-              document.documentElement.style.overflow = '';
-            }
             this.handleDragEnd(evt);
           }
         });
@@ -720,3 +706,4 @@
   </script>
 </body>
 </html>
+
