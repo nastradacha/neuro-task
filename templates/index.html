@@ -197,7 +197,7 @@
                 </div>
               </template>
               <div class="flex items-center gap-2 mt-3">
-                <!-- Use x-model to bind new subtask text for each task -->
+                <!-- Bind new subtask text using x-model -->
                 <input x-model="newSubtask[task.id]" type="text" placeholder="Add subtask..." 
                        class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
                 <button @click="addSubtask(task.id, newSubtask[task.id]); newSubtask[task.id] = ''" 
@@ -233,13 +233,13 @@
       isAILoading: false,
       notifiedTasks: new Set(),
       notificationInterval: null,
-      // New object for holding each task's subtask input
+      // Object to hold each task's new subtask text
       newSubtask: {},
 
       toggleSubtasks(taskId) {
         this.collapsedTasks[taskId] = !this.collapsedTasks[taskId];
         this.$nextTick(() => {
-          this.saveCollapsedState(taskId); // Now defined (even if it does nothing)
+          this.saveCollapsedState(taskId);
         });
       },
 
@@ -287,9 +287,14 @@
         const el = document.getElementById('task-list');
         if (!el) return;
 
+        // Detect touch devices: if the device supports touch, force fallback behavior.
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
+          forceFallback: isTouchDevice,  // only force fallback on touch devices
+          fallbackOnBody: isTouchDevice,
           onEnd: async (evt) => {
             // Create a deep copy of tasks
             const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
@@ -765,4 +770,6 @@
   </script>
 </body>
 </html>
+
+
 
