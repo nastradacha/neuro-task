@@ -269,16 +269,29 @@
         const el = document.getElementById('task-list');
         if (!el) return;
 
+        // Detect if we're on a touch device
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
-          forceFallback: isTouchDevice, // use fallback only on touch devices
-          fallbackTolerance: 5,
+          forceFallback: isTouchDevice,      // Use fallback drag mode on touch devices
+          fallbackOnBody: isTouchDevice,       // Append the clone to the body on touch devices
+          delay: isTouchDevice ? 100 : 0,        // Add a slight delay on mobile to help distinguish a scroll from a drag
+          touchStartThreshold: 15,             // Require a bit of movement before dragging starts
           dragClass: 'sortable-drag',
           ghostClass: 'sortable-ghost',
+
+          // Prevent scrolling while dragging on mobile
+          onStart: (evt) => {
+            if (isTouchDevice) {
+              document.documentElement.style.overflow = 'hidden';
+            }
+          },
           onEnd: (evt) => {
+            if (isTouchDevice) {
+              document.documentElement.style.overflow = '';
+            }
             this.handleDragEnd(evt);
           }
         });
