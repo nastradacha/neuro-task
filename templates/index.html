@@ -288,13 +288,26 @@
         if (!el) return;
 
         // Detect touch devices: if the device supports touch, force fallback behavior.
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchpoints > 0;
 
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
           forceFallback: isTouchDevice,  // only force fallback on touch devices
-          fallbackOnBody: isTouchDevice,
+          fallbackTolerance: 5,  // Increased tolerance for touch screens
+          fallbackOnBody: true,
+          delay: isTouchDevice ? 100 : 0,  // Short delay for touch devices
+          touchStartThreshold: 10,  // Minimum movement to start dragging
+          dragClass: 'sortable-drag',  // Add visual feedback class
+          ghostClass: 'sortable-ghost',  // Add ghost element class
+
+          // Mobile-specific tweaks
+          onStart: () => {
+            if (isTouchDevice) document.body.style.overflow = 'hidden';
+          },
+          onEnd: () => {
+            if (isTouchDevice) document.body.style.overflow = '';
+          },
           onEnd: async (evt) => {
             // Create a deep copy of tasks
             const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
