@@ -18,12 +18,17 @@
 
 /* Drag-and-drop improvements */
 .drag-handle {
-  @apply touch-none select-none; /* From original inline styles */
+  @apply touch-none select-none;
   cursor: grab;
   opacity: 0.6;
   transition: opacity 0.2s, transform 0.2s;
   padding: 8px 4px;
-  -webkit-tap-highlight-color: transparent; /* Remove mobile tap highlight */
+  -webkit-tap-highlight-color: transparent;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .drag-handle:active {
@@ -41,20 +46,25 @@
 
 .sortable-ghost {
   opacity: 0.4 !important;
-  background: rgba(147,197,253,0.1); /* blue-100 with opacity */
+  background: rgba(147,197,253,0.1);
 }
 
 /* Mobile-specific adjustments */
 @media (pointer: coarse) {
   .drag-handle {
-    padding: 12px 8px;
+    padding: 16px !important;
+    font-size: 1.5em;
     min-width: 44px;
-    font-size: 1.2em; /* Larger touch target */
   }
   
   #task-list {
     touch-action: pan-y;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sortable-drag {
+    transform: scale(1.05) !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.15);
   }
 }
 

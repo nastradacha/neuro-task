@@ -13,11 +13,6 @@
     [x-cloak] { display: none !important; }
     .ai-loader { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    .drag-handle {
-      touch-action: none; user-select: none; -webkit-user-select: none;
-      cursor: move; padding: 8px 4px; align-self: stretch;
-      display: flex; align-items: center; color: #9CA3AF;
-    }
   </style>
 </head>
 
@@ -121,7 +116,10 @@
     <div id="task-list" class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
-          <div class="drag-handle" @touchstart.prevent>☰</div>
+          <div class="drag-handle" 
+               @touchstart.prevent
+               role="button" 
+               aria-label="Drag to reorder">☰</div>
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-1">
               <input type="checkbox" :checked="task.completed" @change="toggleCompletion(task.id, $event.target.checked)" 
@@ -287,54 +285,58 @@
         const el = document.getElementById('task-list');
         if (!el) return;
 
-        // Detect touch devices: if the device supports touch, force fallback behavior.
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchpoints > 0;
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
-          forceFallback: isTouchDevice,  // only force fallback on touch devices
-          fallbackTolerance: 5,  // Increased tolerance for touch screens
-          fallbackOnBody: true,
-          delay: isTouchDevice ? 100 : 0,  // Short delay for touch devices
-          touchStartThreshold: 10,  // Minimum movement to start dragging
-          dragClass: 'sortable-drag',  // Add visual feedback class
-          ghostClass: 'sortable-ghost',  // Add ghost element class
+          forceFallback: true,  // Always use fallback for better mobile control
+          fallbackTolerance: 10, // Increased tolerance
+          delay: isTouchDevice ? 300 : 0, // Longer delay for touch devices
+          touchScrollThreshold: 100, // Added
+          preventOnFilter: false, // Added
+          touchStartThreshold: 20, // More movement required before drag starts
+          dragClass: 'sortable-drag',
+          ghostClass: 'sortable-ghost',
 
-          // Mobile-specific tweaks
-          onStart: () => {
-            if (isTouchDevice) document.body.style.overflow = 'hidden';
-          },
-          onEnd: () => {
-            if (isTouchDevice) document.body.style.overflow = '';
-          },
-          onEnd: async (evt) => {
-            // Create a deep copy of tasks
-            const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
-            const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
-            reorderedTasks.splice(evt.newIndex, 0, movedItem);
-
-            // Update local state for instant UI update
-            this.tasks = reorderedTasks;
-            
-            // Then send update to server
-            try {
-              await fetch('/tasks/reorder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  updates: reorderedTasks.map((task, index) => ({
-                    id: task.id,
-                    sort_order: index
-                  }))
-                })
-              });
-            } catch (err) {
-              console.error('Reorder failed:', err);
-              alert('Failed to save new order');
+          // Mobile-specific event handling
+          onStart: (evt) => {
+            if (isTouchDevice) {
+              document.documentElement.style.overflow = 'hidden';
+              evt.item.style.transform = 'scale(1.02)';
             }
+          },
+          onEnd: (evt) => {
+            if (isTouchDevice) {
+              document.documentElement.style.overflow = '';
+              evt.item.style.transform = '';
+            }
+            this.handleDragEnd(evt);
           }
         });
+      },
+
+      async handleDragEnd(evt) {
+        const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
+        const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
+        reorderedTasks.splice(evt.newIndex, 0, movedItem);
+
+        this.tasks = reorderedTasks;
+        
+        try {
+          await fetch('/tasks/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              updates: reorderedTasks.map((task, index) => ({
+                id: task.id,
+                sort_order: index
+              }))
+            })
+          });
+        } catch (err) {
+          console.error('Reorder failed:', err);
+        }
       },
 
       // ========== SUBTASK PROGRESS ==========
