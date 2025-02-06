@@ -116,10 +116,8 @@
     <div id="task-list" class="space-y-4" hx-get="/tasks" hx-trigger="sse:task_update">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
         <div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
-          <div class="drag-handle" 
-               @touchstart.prevent
-               role="button" 
-               aria-label="Drag to reorder">☰</div>
+          <!-- Removed @touchstart.prevent and @mousedown.prevent -->
+          <div class="drag-handle">☰</div>
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-1">
               <input type="checkbox" :checked="task.completed" @change="toggleCompletion(task.id, $event.target.checked)" 
@@ -195,7 +193,6 @@
                 </div>
               </template>
               <div class="flex items-center gap-2 mt-3">
-                <!-- Bind new subtask text using x-model -->
                 <input x-model="newSubtask[task.id]" type="text" placeholder="Add subtask..." 
                        class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
                 <button @click="addSubtask(task.id, newSubtask[task.id]); newSubtask[task.id] = ''" 
@@ -231,7 +228,6 @@
       isAILoading: false,
       notifiedTasks: new Set(),
       notificationInterval: null,
-      // Object to hold each task's new subtask text
       newSubtask: {},
 
       toggleSubtasks(taskId) {
@@ -241,37 +237,27 @@
         });
       },
 
-      // Dummy function to avoid errors. You can implement localStorage saving here if desired.
       saveCollapsedState(taskId) {
-        // Optional: Save collapsed state to localStorage, e.g.:
-        // localStorage.setItem('collapsed_' + taskId, this.collapsedTasks[taskId]);
+        // Optional: Save collapsed state to localStorage if desired.
       },
 
-      // ========== INIT ==========
       async init() {
-        // Load theme
         const storedTheme = localStorage.getItem('theme');
         this.darkMode = (storedTheme === 'dark');
 
-        // Fetch tasks
         this.tasks = await this.fetchTasks();
 
-        // Initialize collapsed states for all tasks
         this.tasks.forEach(task => {
           if (!(task.id in this.collapsedTasks)) {
-            this.collapsedTasks[task.id] = false; // Default to visible (not collapsed)
+            this.collapsedTasks[task.id] = false;
           }
         });
 
-        // Fetch subtasks for each task
         for (let t of this.tasks) {
           this.subtasks[t.id] = await this.fetchSubtasks(t.id);
         }
 
-        // Initialize notifications
         this.initNotifications();
-
-        // Initialize drag and drop
         this.initDragAndDrop();
       },
 
@@ -280,7 +266,6 @@
         localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
       },
 
-      // ========== DRAG & DROP ==========
       initDragAndDrop() {
         const el = document.getElementById('task-list');
         if (!el) return;
@@ -290,26 +275,23 @@
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
-          forceFallback: true,  // Always use fallback for better mobile control
-          fallbackTolerance: 10, // Increased tolerance
-          delay: isTouchDevice ? 300 : 0, // Longer delay for touch devices
-          touchScrollThreshold: 100, // Added
-          preventOnFilter: false, // Added
-          touchStartThreshold: 20, // More movement required before drag starts
+          forceFallback: isTouchDevice,
+          fallbackTolerance: 5,
+          delay: isTouchDevice ? 100 : 0,
+          preventOnFilter: false,
+          touchStartThreshold: 15,
           dragClass: 'sortable-drag',
           ghostClass: 'sortable-ghost',
-
-          // Mobile-specific event handling
+          invertSwap: true,
+          direction: 'vertical',
           onStart: (evt) => {
             if (isTouchDevice) {
               document.documentElement.style.overflow = 'hidden';
-              evt.item.style.transform = 'scale(1.02)';
             }
           },
           onEnd: (evt) => {
             if (isTouchDevice) {
               document.documentElement.style.overflow = '';
-              evt.item.style.transform = '';
             }
             this.handleDragEnd(evt);
           }
@@ -320,9 +302,7 @@
         const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
         const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
         reorderedTasks.splice(evt.newIndex, 0, movedItem);
-
         this.tasks = reorderedTasks;
-        
         try {
           await fetch('/tasks/reorder', {
             method: 'POST',
@@ -339,7 +319,6 @@
         }
       },
 
-      // ========== SUBTASK PROGRESS ==========
       subtaskProgress(taskId) {
         const subs = this.subtasks[taskId] || [];
         const total = subs.length;
@@ -348,13 +327,11 @@
         return { total, completed, percent };
       },
 
-      // ========== INLINE EDITING METHODS ==========
       enableTextEdit(task) {
         if (!this.editingStates[task.id]) {
           this.editingStates[task.id] = {};
         }
         this.editingStates[task.id].text = true;
-
         if (!this.editingBuffer[task.id]) {
           this.editingBuffer[task.id] = {};
         }
@@ -369,7 +346,7 @@
           body: JSON.stringify({ task: newText })
         });
         if (resp.ok) {
-          task.task = newText; 
+          task.task = newText;
         }
         this.editingStates[task.id].text = false;
       },
@@ -379,11 +356,9 @@
           this.editingStates[task.id] = {};
         }
         this.editingStates[task.id].date = true;
-
         if (!this.editingBuffer[task.id]) {
           this.editingBuffer[task.id] = {};
         }
-        // Convert to datetime-local format
         this.editingBuffer[task.id].date = (task.due_date || '').substring(0, 16);
       },
 
@@ -395,7 +370,7 @@
           body: JSON.stringify({ due_date: newDate })
         });
         if (resp.ok) {
-          task.due_date = newDate; 
+          task.due_date = newDate;
         }
         this.editingStates[task.id].date = false;
       },
@@ -405,7 +380,6 @@
           this.editingStates[task.id] = {};
         }
         this.editingStates[task.id].priority = true;
-
         if (!this.editingBuffer[task.id]) {
           this.editingBuffer[task.id] = {};
         }
@@ -430,7 +404,6 @@
           this.editingStates[task.id] = {};
         }
         this.editingStates[task.id].category = true;
-
         if (!this.editingBuffer[task.id]) {
           this.editingBuffer[task.id] = {};
         }
@@ -450,10 +423,8 @@
         this.editingStates[task.id].category = false;
       },
 
-      // ========== TASK / SUBTASK METHODS ==========
       async fetchTasks() {
         try {
-          // Server should ORDER BY sort_order, due_date
           const resp = await fetch('/tasks');
           if (!resp.ok) throw new Error('Failed to fetch tasks');
           return await resp.json();
@@ -492,14 +463,10 @@
             })
           });
           if (!resp.ok) throw new Error('Failed to add task');
-
-          // Reset form
           this.newTask = '';
           this.newDueDate = '';
           this.newPriority = 'medium';
           this.newCategory = '';
-
-          // Refresh tasks
           await this.refreshTasksWithSubtasks();
         } catch (err) {
           console.error('Add Task error:', err);
@@ -511,7 +478,6 @@
         try {
           const resp = await fetch(`/tasks/${taskId}`, { method: 'DELETE' });
           if (!resp.ok) throw new Error('Failed to delete task');
-
           this.tasks = this.tasks.filter(t => t.id !== taskId);
           delete this.subtasks[taskId];
         } catch (err) {
@@ -528,7 +494,6 @@
             body: JSON.stringify({ completed })
           });
           if (!resp.ok) throw new Error('Failed to update completion');
-
           const idx = this.tasks.findIndex(t => t.id === taskId);
           this.tasks[idx].completed = completed;
         } catch (err) {
@@ -551,7 +516,6 @@
             console.error('Failed to add subtask');
             return;
           }
-          // Update the subtasks list for the given task
           this.subtasks[taskId] = await this.fetchSubtasks(taskId);
         } catch (err) {
           console.error('Add subtask error:', err);
@@ -577,9 +541,7 @@
 
       async deleteSubtask(taskId, subtaskId) {
         try {
-          const resp = await fetch(`/tasks/${taskId}/subtasks/${subtaskId}`, {
-            method: 'DELETE'
-          });
+          const resp = await fetch(`/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
           if (!resp.ok) {
             console.error('Failed to delete subtask');
             return;
@@ -591,31 +553,21 @@
       },
 
       async refreshTasksWithSubtasks() {
-        // Preserve the collapsed state
         const preservedCollapsed = { ...this.collapsedTasks };
-        
-        // Fetch fresh tasks and subtasks
         this.tasks = await this.fetchTasks();
-
-        // Initialize collapsed states for new tasks
         this.tasks.forEach(task => {
           if (!(task.id in preservedCollapsed)) {
             preservedCollapsed[task.id] = false;
           }
         });
-        
-        // Rebuild subtasks while maintaining reactivity
         const newSubtasks = {};
         for (const task of this.tasks) {
           newSubtasks[task.id] = await this.fetchSubtasks(task.id);
         }
-        this.subtasks = newSubtasks; // Replace entire object to trigger reactivity
-        
-        // Restore collapsed states
+        this.subtasks = newSubtasks;
         this.collapsedTasks = preservedCollapsed;
       },
 
-      // ========== AI AUTO-ADD ==========
       async aiAutoAdd() {
         if (!this.newTask.trim()) {
           alert('Please enter a task or AI prompt first!');
@@ -632,9 +584,7 @@
           if (!resp.ok) {
             throw new Error(data.error || 'AI auto-add failed');
           }
-
-          // Show AI result
-          this.aiAutoAddResult = data; 
+          this.aiAutoAddResult = data;
           this.showAutoAddModal = true;
         } catch (err) {
           console.error('AI Auto-Add error:', err);
@@ -663,17 +613,11 @@
             })
           });
           if (!createResp.ok) throw new Error('Failed to create main task');
-
-          // Refresh tasks
           await this.refreshTasksWithSubtasks();
-
-          // Find newly created task
           const newTask = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
           if (!newTask) {
             throw new Error('Could not locate newly created task');
           }
-
-          // Insert subtasks
           if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
             for (let item of this.aiAutoAddResult.subtasks) {
               const subResp = await fetch(`/tasks/${newTask.id}/subtasks`, {
@@ -687,7 +631,6 @@
             }
             this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
           }
-
           this.showAutoAddModal = false;
           alert('AI Auto-Add: Task + Subtasks created!');
         } catch (err) {
@@ -696,7 +639,6 @@
         }
       },
 
-      // ========== SEARCH / FILTER / SORT ==========
       filteredAndSortedTasks() {
         let filtered = this.tasks.filter(task => {
           const matchesSearch = this.searchQuery
@@ -708,14 +650,9 @@
           const matchesCategory = this.filterCategory
             ? (task.category || '').toLowerCase().includes(this.filterCategory.toLowerCase())
             : true;
-
           return matchesSearch && matchesPriority && matchesCategory;
         });
-
-        // Always sort by sort_order first
         filtered.sort((a, b) => a.sort_order - b.sort_order);
-
-        // Apply secondary sorts
         if (this.sortOption === 'dueAsc') {
           filtered.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
         } else if (this.sortOption === 'dueDesc') {
@@ -725,7 +662,6 @@
         } else if (this.sortOption === 'priorityAsc') {
           filtered.sort((a, b) => this.priorityValue(a.priority) - this.priorityValue(b.priority));
         }
-
         return filtered;
       },
 
@@ -736,7 +672,6 @@
         return 0;
       },
 
-      // ========== NOTIFICATIONS ==========
       initNotifications() {
         if ('Notification' in window) {
           Notification.requestPermission().then(permission => {
@@ -785,6 +720,3 @@
   </script>
 </body>
 </html>
-
-
-
