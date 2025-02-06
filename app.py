@@ -64,9 +64,9 @@ def get_tasks():
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT id, task, due_date, priority, completed, category
+        SELECT id, task, due_date, priority, completed, category, sort_order
         FROM tasks
-        ORDER BY due_date
+        ORDER BY sort_order ASC, due_date  -- Add sort_order as primary sort
     ''')
     tasks = [dict(row) for row in cursor.fetchall()]
     return jsonify(tasks)
@@ -185,6 +185,27 @@ def update_task(task_id):
     conn.commit()
 
     return jsonify({'status': 'success'})
+
+
+@app.route('/tasks/reorder', methods=['POST'])
+def reorder_tasks():
+    data = request.json
+    updates = data.get('updates', [])
+    
+    conn = get_db()
+    try:
+        for update in updates:
+            conn.execute('''
+                UPDATE tasks
+                SET sort_order = ?
+                WHERE id = ?
+            ''', (update['sort_order'], update['id']))
+        conn.commit()
+        sse.publish({"message": "update"}, type='task_update')
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
 
 
 
