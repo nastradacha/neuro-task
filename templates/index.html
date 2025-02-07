@@ -112,9 +112,11 @@
       </select>
     </div>
 
-    <!-- Task List: Changed container spacing and added the "task-item" class -->
-    <div id="task-list" class="flex flex-col gap-4" hx-get="/tasks" hx-trigger="sse:task_update">
+    <!-- Task List -->
+    <!-- Notice: We removed the CSS gap from the container and instead use plain flex-col -->
+    <div id="task-list" class="flex flex-col" hx-get="/tasks" hx-trigger="sse:task_update">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
+        <!-- Each task item now has an explicit "task-item" class -->
         <div class="task-item bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
           <div class="drag-handle">☰</div>
           <div class="flex-1">
@@ -241,19 +243,15 @@
       async init() {
         const storedTheme = localStorage.getItem('theme');
         this.darkMode = (storedTheme === 'dark');
-
         this.tasks = await this.fetchTasks();
-
         this.tasks.forEach(task => {
           if (!(task.id in this.collapsedTasks)) {
             this.collapsedTasks[task.id] = false;
           }
         });
-
         for (let t of this.tasks) {
           this.subtasks[t.id] = await this.fetchSubtasks(t.id);
         }
-
         this.initNotifications();
         this.initDragAndDrop();
       },
@@ -266,15 +264,15 @@
       initDragAndDrop() {
         const el = document.getElementById('task-list');
         if (!el) return;
-
         const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-
         new Sortable(el, {
           animation: 150,
           handle: '.drag-handle',
           draggable: '.task-item',
           forceFallback: isTouchDevice,
           fallbackOnBody: isTouchDevice,
+          useTransform: false,         // Disable transforms for better mobile support
+          fallbackTolerance: 0,        // No extra offset tolerance
           onEnd: (evt) => {
             this.handleDragEnd(evt);
           }

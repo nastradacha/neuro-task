@@ -57,15 +57,19 @@
     font-size: 1.5em;
     min-width: 48px;
     min-height: 48px;
+    position: relative; /* Ensure z-index works */
+    z-index: 20; /* Keep above other elements */
   }
   
   #task-list {
     touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
+    gap: 1rem !important; /* Replace margin with gap */
   }
 
   .sortable-drag {
-    transform: scale(1.05) !important;
+    transform: scale(1.02) !important; /* Less aggressive scaling */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
 }
 
@@ -81,3 +85,12 @@
 }
 
 .z-10 { z-index: 10; }
+
+/* Add margin between task items */
+.task-item:not(:last-child) {
+  margin-bottom: 1rem;
+}
+
+.task-item {
+  margin-bottom: 0 !important; /* Remove individual margins */
+}
