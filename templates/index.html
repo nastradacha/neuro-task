@@ -5,9 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NeuroTask - All Features</title>
   <link href="/static/output.css" rel="stylesheet">
+  <!-- Web App Manifest -->
+  <link rel="manifest" href="/static/manifest.json">
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <!-- iOS Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="NeuroTask">
 
   <style>
     [x-cloak] { display: none !important; }
@@ -40,27 +47,41 @@
     <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
       <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Add Task (Manual) or Use AI</h2>
       <form @submit.prevent="addTask" class="space-y-4">
-        <input x-model="newTask" type="text" placeholder="Type a task or AI prompt..." 
-               class="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <input x-model="newDueDate" type="datetime-local" 
-                 class="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
-          <select x-model="newPriority" class="p-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-          </select>
+        <!-- Task Description Input -->
+        <div>
+          <label for="taskInput" class="sr-only">Task Description</label>
+          <input x-model="newTask" id="taskInput" type="text" placeholder="Type a task or AI prompt..."
+                 class="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
+        <!-- Due Date and Priority in a Two-Column Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="dueDate" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
+            <input x-model="newDueDate" id="dueDate" type="datetime-local"
+                   class="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
+          </div>
+          <div>
+            <label for="priority" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+            <select x-model="newPriority" id="priority"
+                    class="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+        <!-- Optional Category Input -->
         <div>
           <label for="category" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Category (Optional)</label>
-          <input x-model="newCategory" id="category" type="text" placeholder="e.g., Work, Personal, Shopping..." 
+          <input x-model="newCategory" id="category" type="text" placeholder="e.g., Work, Personal, Shopping..."
                  class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
         </div>
+        <!-- Form Buttons -->
         <div class="text-right flex gap-2 justify-end mt-2">
           <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-xl transition-all">
             Add Task 🚀
           </button>
-          <button type="button" @click="aiAutoAdd()" :disabled="isAILoading" 
+          <button type="button" @click="aiAutoAdd()" :disabled="isAILoading"
                   class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
             <span x-show="!isAILoading">🤖AI Auto-Add</span>
             <span x-show="isAILoading" class="ai-loader">🌀</span>
@@ -92,37 +113,54 @@
       </div>
     </div>
 
-    <!-- Filters (unchanged) -->
+    <!-- Filters Section -->
     <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
-      <input x-model="searchQuery" type="text" placeholder="Search tasks..." 
-             class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
-      <select x-model="filterPriority" class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
-        <option value="">All Priorities</option>
-        <option value="low">Low</option>
-        <option value="medium">Medium</option>
-        <option value="high">High</option>
-      </select>
-      <input x-model="filterCategory" type="text" placeholder="Filter by Category" 
-             class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
-      <select x-model="sortOption" class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
-        <option value="dueAsc">Due Date (Asc)</option>
-        <option value="dueDesc">Due Date (Desc)</option>
-        <option value="priorityDesc">Priority (High→Low)</option>
-        <option value="priorityAsc">Priority (Low→High)</option>
-      </select>
+      <div>
+        <label for="searchInput" class="sr-only">Search tasks</label>
+        <input x-model="searchQuery" id="searchInput" type="text" placeholder="Search tasks..." 
+              class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
+      </div>
+
+      <div>
+        <label for="priorityFilter" class="sr-only">Filter by priority</label>
+        <select x-model="filterPriority" id="priorityFilter" 
+                class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
+          <option value="">All Priorities</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="categoryFilter" class="sr-only">Filter by category</label>
+        <input x-model="filterCategory" id="categoryFilter" type="text" placeholder="Filter by Category" 
+              class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
+      </div>
+
+      <div>
+        <label for="sortSelect" class="sr-only">Sort tasks</label>
+        <select x-model="sortOption" id="sortSelect" 
+                class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
+          <option value="dueAsc">Due Date (Asc)</option>
+          <option value="dueDesc">Due Date (Desc)</option>
+          <option value="priorityDesc">Priority (High→Low)</option>
+          <option value="priorityAsc">Priority (Low→High)</option>
+        </select>
+      </div>
     </div>
 
     <!-- Task List -->
-    <!-- Notice: We removed the CSS gap from the container and instead use plain flex-col -->
     <div id="task-list" class="flex flex-col" hx-get="/tasks" hx-trigger="sse:task_update">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
-        <!-- Each task item now has an explicit "task-item" class -->
         <div class="task-item bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
           <div class="drag-handle">☰</div>
           <div class="flex-1">
             <div class="flex items-center gap-3 mb-1">
-              <input type="checkbox" :checked="task.completed" @change="toggleCompletion(task.id, $event.target.checked)" 
-                     class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+              <label :for="'taskCheckbox' + task.id" class="sr-only">Toggle completion</label>
+              <input type="checkbox" :id="'taskCheckbox' + task.id" 
+                    :checked="task.completed" @change="toggleCompletion(task.id, $event.target.checked)" 
+                    class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
               <button @click="deleteTask(task.id)" class="text-red-500 hover:text-red-600 transition-colors shrink-0">✕</button>
               <div class="flex-1">
                 <span x-show="!editingStates[task.id]?.text" @click="enableTextEdit(task)" x-text="task.task" 
@@ -139,19 +177,18 @@
               <input x-show="editingStates[task.id]?.date" x-model="editingBuffer[task.id]?.date" type="datetime-local" 
                      @blur="saveDateEdit(task)" class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white" x-cloak>
               <div class="flex items-center gap-2 mt-2 md:mt-0">
-                <span :class="{
-                  'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100': task.priority === 'low',
-                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100': task.priority === 'medium',
-                  'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100': task.priority === 'high'
-                }" class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer" @click="enablePriorityEdit(task)">
+                <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer">
                   <span x-show="!editingStates[task.id]?.priority" 
                         x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
-                  <select x-show="editingStates[task.id]?.priority" x-model="editingBuffer[task.id]?.priority" @blur="savePriorityEdit(task)" 
-                          class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white" x-cloak>
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                  <template x-if="editingStates[task.id]?.priority">
+                    <label :for="'priorityEdit' + task.id" class="sr-only">Edit priority</label>
+                    <select :id="'priorityEdit' + task.id" x-model="editingBuffer[task.id]?.priority" @blur="savePriorityEdit(task)" 
+                            class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white">
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </template>
                 </span>
                 <span x-show="!editingStates[task.id]?.category && task.category" @click="enableCategoryEdit(task)" 
                       class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 cursor-pointer">
@@ -184,9 +221,12 @@
               <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
-                    <input type="checkbox" :checked="subtask.completed" @change="toggleSubtaskCompletion(task.id, subtask)" 
-                           class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
-                    <span x-text="subtask.subtask" :class="subtask.completed ? 'line-through text-gray-400' : ''"></span>
+                    <label :for="'subtaskCheckbox' + subtask.id" class="flex items-center gap-2">
+                      <input type="checkbox" :id="'subtaskCheckbox' + subtask.id" 
+                             :checked="subtask.completed" @change="toggleSubtaskCompletion(task.id, subtask)" 
+                             class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+                      <span x-text="subtask.subtask" :class="subtask.completed ? 'line-through text-gray-400' : ''"></span>
+                    </label>
                   </div>
                   <button @click="deleteSubtask(task.id, subtask.id)" class="text-red-500 hover:text-red-700 text-sm">Delete</button>
                 </div>
@@ -228,6 +268,33 @@
       notifiedTasks: new Set(),
       notificationInterval: null,
       newSubtask: {},
+      isOffline: false,
+
+      // Helper to initialize editing state for a given task field
+      initEdit(taskId, field, value) {
+        if (!this.editingStates[taskId]) {
+          this.editingStates[taskId] = {};
+        }
+        if (!this.editingBuffer[taskId]) {
+          this.editingBuffer[taskId] = {};
+        }
+        this.editingStates[taskId][field] = true;
+        this.editingBuffer[taskId][field] = value;
+      },
+
+      // Generic save helper for editing fields
+      async saveEdit(task, field, payloadKey) {
+        const newValue = this.editingBuffer[task.id]?.[field] || task[payloadKey];
+        const resp = await fetch(`/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [payloadKey]: newValue })
+        });
+        if (resp.ok) {
+          task[payloadKey] = newValue;
+        }
+        this.editingStates[task.id][field] = false;
+      },
 
       toggleSubtasks(taskId) {
         this.collapsedTasks[taskId] = !this.collapsedTasks[taskId];
@@ -254,6 +321,9 @@
         }
         this.initNotifications();
         this.initDragAndDrop();
+        this.checkConnectionStatus();
+        window.addEventListener('online', () => { this.isOffline = false; });
+        window.addEventListener('offline', () => { this.isOffline = true; });
       },
 
       toggleDarkMode() {
@@ -271,8 +341,8 @@
           draggable: '.task-item',
           forceFallback: isTouchDevice,
           fallbackOnBody: isTouchDevice,
-          useTransform: false,         // Disable transforms for better mobile support
-          fallbackTolerance: 0,        // No extra offset tolerance
+          useTransform: false,
+          fallbackTolerance: 0,
           onEnd: (evt) => {
             this.handleDragEnd(evt);
           }
@@ -309,99 +379,35 @@
       },
 
       enableTextEdit(task) {
-        if (!this.editingStates[task.id]) {
-          this.editingStates[task.id] = {};
-        }
-        this.editingStates[task.id].text = true;
-        if (!this.editingBuffer[task.id]) {
-          this.editingBuffer[task.id] = {};
-        }
-        this.editingBuffer[task.id].text = task.task;
+        this.initEdit(task.id, 'text', task.task);
       },
 
-      async saveTextEdit(task) {
-        const newText = this.editingBuffer[task.id]?.text || task.task;
-        const resp = await fetch(`/tasks/${task.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task: newText })
-        });
-        if (resp.ok) {
-          task.task = newText;
-        }
-        this.editingStates[task.id].text = false;
+      saveTextEdit(task) {
+        return this.saveEdit(task, 'text', 'task');
       },
 
       enableDateEdit(task) {
-        if (!this.editingStates[task.id]) {
-          this.editingStates[task.id] = {};
-        }
-        this.editingStates[task.id].date = true;
-        if (!this.editingBuffer[task.id]) {
-          this.editingBuffer[task.id] = {};
-        }
-        this.editingBuffer[task.id].date = (task.due_date || '').substring(0, 16);
+        this.initEdit(task.id, 'date', (task.due_date || '').substring(0, 16));
       },
 
-      async saveDateEdit(task) {
-        const newDate = this.editingBuffer[task.id]?.date || task.due_date;
-        const resp = await fetch(`/tasks/${task.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ due_date: newDate })
-        });
-        if (resp.ok) {
-          task.due_date = newDate;
-        }
-        this.editingStates[task.id].date = false;
+      saveDateEdit(task) {
+        return this.saveEdit(task, 'date', 'due_date');
       },
 
       enablePriorityEdit(task) {
-        if (!this.editingStates[task.id]) {
-          this.editingStates[task.id] = {};
-        }
-        this.editingStates[task.id].priority = true;
-        if (!this.editingBuffer[task.id]) {
-          this.editingBuffer[task.id] = {};
-        }
-        this.editingBuffer[task.id].priority = task.priority;
+        this.initEdit(task.id, 'priority', task.priority);
       },
 
-      async savePriorityEdit(task) {
-        const newPriority = this.editingBuffer[task.id]?.priority || task.priority;
-        const resp = await fetch(`/tasks/${task.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ priority: newPriority })
-        });
-        if (resp.ok) {
-          task.priority = newPriority;
-        }
-        this.editingStates[task.id].priority = false;
+      savePriorityEdit(task) {
+        return this.saveEdit(task, 'priority', 'priority');
       },
 
       enableCategoryEdit(task) {
-        if (!this.editingStates[task.id]) {
-          this.editingStates[task.id] = {};
-        }
-        this.editingStates[task.id].category = true;
-        if (!this.editingBuffer[task.id]) {
-          this.editingBuffer[task.id] = {};
-        }
-        this.editingBuffer[task.id].category = task.category || '';
+        this.initEdit(task.id, 'category', task.category || '');
       },
 
-      async saveCategoryEdit(task) {
-        const newCat = this.editingBuffer[task.id]?.category || '';
-        const resp = await fetch(`/tasks/${task.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ category: newCat })
-        });
-        if (resp.ok) {
-          task.category = newCat;
-        }
-        this.editingStates[task.id].category = false;
+      saveCategoryEdit(task) {
+        return this.saveEdit(task, 'category', 'category');
       },
 
       async fetchTasks() {
@@ -444,6 +450,7 @@
             })
           });
           if (!resp.ok) throw new Error('Failed to add task');
+          // Reset form fields after successful addition.
           this.newTask = '';
           this.newDueDate = '';
           this.newPriority = 'medium';
@@ -542,9 +549,9 @@
           }
         });
         const newSubtasks = {};
-        for (const task of this.tasks) {
+        await Promise.all(this.tasks.map(async task => {
           newSubtasks[task.id] = await this.fetchSubtasks(task.id);
-        }
+        }));
         this.subtasks = newSubtasks;
         this.collapsedTasks = preservedCollapsed;
       },
@@ -633,7 +640,7 @@
             : true;
           return matchesSearch && matchesPriority && matchesCategory;
         });
-        filtered.sort((a, b) => a.sort_order - b.sort_order);
+        // Sort based on selected option
         if (this.sortOption === 'dueAsc') {
           filtered.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
         } else if (this.sortOption === 'dueDesc') {
@@ -642,6 +649,8 @@
           filtered.sort((a, b) => this.priorityValue(b.priority) - this.priorityValue(a.priority));
         } else if (this.sortOption === 'priorityAsc') {
           filtered.sort((a, b) => this.priorityValue(a.priority) - this.priorityValue(b.priority));
+        } else {
+          filtered.sort((a, b) => a.sort_order - b.sort_order);
         }
         return filtered;
       },
@@ -695,9 +704,31 @@
           task: "Test Notification",
           due_date: new Date().toISOString()
         });
+      },
+
+      // Check current online status
+      checkConnectionStatus() {
+        this.isOffline = !navigator.onLine;
       }
     };
   }
+
+  // Service Worker Registration
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+        .then(registration => {
+          console.log('ServiceWorker registration successful:', registration);
+        })
+        .catch(err => {
+          console.log('ServiceWorker registration failed:', err);
+        });
+    });
+  }
   </script>
+  <!-- Offline Status Banner -->
+  <div x-show="isOffline" class="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">
+    ⚠️ You're offline - viewing cached content
+  </div>
 </body>
 </html>
