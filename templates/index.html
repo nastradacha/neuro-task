@@ -8,7 +8,7 @@
   <!-- Web App Manifest -->
   <link rel="manifest" href="/static/manifest.json">
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <!-- Using SortableJS for drag-and-drop -->
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   <link rel="icon" type="image/png" href="/static/favicon.ico">
   
@@ -37,10 +37,58 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
       z-index: 1000;
     }
+    
+    /* Offline Pending Banner */
+    #offline-banner {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      background: #fbbf24;
+      color: #1c1917;
+      padding: 0.5rem;
+      text-align: center;
+      z-index: 1000;
+    }
+    
+    /* Drag Handle styling */
+    .drag-handle {
+      cursor: grab;
+      touch-action: none;
+      -ms-touch-action: none;
+    }
+    
+    /* AI Auto-Add Modal styling */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      max-width: 500px;
+      width: 90%;
+    }
+    .dark .modal-content {
+      background: #1f2937;
+      color: #e5e7eb;
+    }
   </style>
+  
+  <!-- Remove hx-sse attribute on mobile -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function(){
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        document.body.removeAttribute('hx-sse');
+      }
+    });
+  </script>
 </head>
-
-<!-- The <body> is now also the SSE source for HTMX -->
 <body hx-sse="connect:/stream" class="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-900 dark:to-gray-800 min-h-screen text-gray-800 dark:text-gray-200">
   <div class="container mx-auto px-4 py-8 max-w-3xl">
     
@@ -54,8 +102,13 @@
       </button>
     </div>
     
-    <!-- Install App Button (hidden by default) -->
+    <!-- Install App Button -->
     <button id="install-app-button" style="display: none;">Install App</button>
+    
+    <!-- Offline Pending Banner -->
+    <div id="offline-banner" x-show="offlinePending" x-cloak>
+      ⚠️ Offline edits pending sync.
+    </div>
     
     <!-- Notification Test Button -->
     <div class="mb-4 text-right">
@@ -66,15 +119,15 @@
     
     <!-- Add Task Form -->
     <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl">
-      <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">Add Task (Manual) or Use AI</h2>
+      <h2 class="text-lg font-bold mb-3 text-gray-800 dark:text-gray-200">
+        Add Task (Manual) or Use AI
+      </h2>
       <form @submit.prevent="addTask" class="space-y-4">
-        <!-- Task Description Input -->
         <div>
           <label for="taskInput" class="sr-only">Task Description</label>
           <input x-model="newTask" id="taskInput" type="text" placeholder="Type a task or AI prompt..."
                  class="w-full p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
-        <!-- Due Date and Priority in a Two-Column Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label for="dueDate" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Due Date</label>
@@ -91,13 +144,11 @@
             </select>
           </div>
         </div>
-        <!-- Optional Category Input -->
         <div>
           <label for="category" class="block text-sm text-gray-700 dark:text-gray-300 mb-1">Category (Optional)</label>
           <input x-model="newCategory" id="category" type="text" placeholder="e.g., Work, Personal, Shopping..."
                  class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
         </div>
-        <!-- Form Buttons -->
         <div class="text-right flex gap-2 justify-end mt-2">
           <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold p-3 rounded-xl transition-all">
             Add Task 🚀
@@ -105,134 +156,96 @@
           <button type="button" @click="aiAutoAdd()" :disabled="isAILoading"
                   class="bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl transition-all flex items-center gap-2">
             <span x-show="!isAILoading">🤖AI Auto-Add</span>
-            <span x-show="isAILoading" class="ai-loader">🌀</span>
+            <span x-show="isAILoading" class="ai-loader" style="display: none;">🌀</span>
           </button>
         </div>
       </form>
     </div>
     
-    <!-- AI Proposal Panel -->
-    <div x-show="showAutoAddModal" x-cloak class="mb-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-xl shadow">
-      <h3 class="text-lg font-bold mb-2 text-gray-800 dark:text-gray-200">AI Proposed Task</h3>
-      <div class="mb-2"><strong>Main Task:</strong> <span x-text="aiAutoAddResult.main_task" class="ml-2 text-sm"></span></div>
-      <div class="mb-2">
-        <strong>Subtasks:</strong>
-        <template x-for="(sub, idx) in aiAutoAddResult.subtasks" :key="idx">
-          <div class="ml-4 list-disc" x-text="sub"></div>
-        </template>
-        <template x-if="aiAutoAddResult.subtasks.length === 0">
-          <div class="ml-4 text-xs italic">(No subtasks)</div>
-        </template>
-      </div>
-      <div class="text-sm">
-        <p><strong>Date:</strong> <span x-text="newDueDate || '(none)'"></span></p>
-        <p><strong>Priority:</strong> <span x-text="newPriority"></span></p>
-      </div>
-      <div class="mt-4 flex gap-4">
-        <button @click="editAutoAdd()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">Edit in Form</button>
-        <button @click="addAutoAdd()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Add Immediately</button>
-      </div>
-    </div>
-    
-    <!-- Filters Section -->
-    <div class="mb-4 flex flex-col md:flex-row items-start md:items-center gap-2">
-      <div>
-        <label for="searchInput" class="sr-only">Search tasks</label>
-        <input x-model="searchQuery" id="searchInput" type="text" placeholder="Search tasks..." 
-              class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
-      </div>
-      
-      <div>
-        <label for="priorityFilter" class="sr-only">Filter by priority</label>
-        <select x-model="filterPriority" id="priorityFilter" 
-                class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
-          <option value="">All Priorities</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-      </div>
-      
-      <div>
-        <label for="categoryFilter" class="sr-only">Filter by category</label>
-        <input x-model="filterCategory" id="categoryFilter" type="text" placeholder="Filter by Category" 
-              class="p-2 border rounded-md dark:bg-gray-900 dark:text-white w-full md:w-auto">
-      </div>
-      
-      <div>
-        <label for="sortSelect" class="sr-only">Sort tasks</label>
-        <select x-model="sortOption" id="sortSelect" 
-                class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
-          <option value="dueAsc">Due Date (Asc)</option>
-          <option value="dueDesc">Due Date (Desc)</option>
-          <option value="priorityDesc">Priority (High→Low)</option>
-          <option value="priorityAsc">Priority (Low→High)</option>
-        </select>
+    <!-- AI Auto-Add Modal -->
+    <div x-show="showAutoAddModal" class="modal-overlay" x-cloak>
+      <div class="modal-content">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-gray-200">AI Proposed Task</h2>
+        <div class="mb-4">
+          <p class="text-gray-700 dark:text-gray-300"><strong>Main Task:</strong> <span x-text="aiAutoAddResult.main_task"></span></p>
+          <p class="text-gray-700 dark:text-gray-300 mt-2"><strong>Subtasks:</strong></p>
+          <ul class="list-disc ml-6 mt-1">
+            <template x-for="(sub, idx) in aiAutoAddResult.subtasks" :key="idx">
+              <li x-text="sub" class="text-gray-600 dark:text-gray-400"></li>
+            </template>
+            <template x-if="aiAutoAddResult.subtasks.length === 0">
+              <li class="text-gray-600 dark:text-gray-400 italic">(No subtasks proposed)</li>
+            </template>
+          </ul>
+        </div>
+        <div class="flex justify-end gap-4">
+          <button @click="editAutoAdd()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">Edit in Form</button>
+          <button @click="addAutoAdd()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Immediately</button>
+        </div>
       </div>
     </div>
     
     <!-- Task List -->
-    <div id="task-list" class="flex flex-col" hx-get="/tasks" hx-trigger="sse:task_update from:body">
+    <div id="task-list" class="flex flex-col">
       <template x-for="(task, index) in filteredAndSortedTasks()" :key="task.id">
         <div class="task-item bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg hover:shadow-xl transition-shadow flex gap-2 items-start" :data-id="task.id">
           <div class="drag-handle">☰</div>
           <div class="flex-1">
+            <!-- Task Header -->
             <div class="flex items-center gap-3 mb-1">
               <label :for="'taskCheckbox' + task.id" class="sr-only">Toggle completion</label>
-              <input type="checkbox" :id="'taskCheckbox' + task.id" 
-                    :checked="task.completed" @change="toggleCompletion(task.id, $event.target.checked)" 
-                    class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
+              <input :id="'taskCheckbox' + task.id" type="checkbox" :checked="task.completed"
+                     @change="toggleCompletion(task.id, $event.target.checked)"
+                     class="h-5 w-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
               <button @click="deleteTask(task.id)" class="text-red-500 hover:text-red-600 transition-colors shrink-0">✕</button>
               <div class="flex-1">
-                <span x-show="!editingStates[task.id]?.text" @click="enableTextEdit(task)" x-text="task.task" 
-                      class="text-gray-800 dark:text-gray-200 cursor-pointer" 
+                <span x-show="!editingStates[task.id]?.text" @click="enableTextEdit(task)"
+                      x-text="task.task" class="text-gray-800 dark:text-gray-200 cursor-pointer"
                       :class="task.completed ? 'line-through text-gray-500' : ''"></span>
                 <input x-show="editingStates[task.id] && editingStates[task.id].text"
-                      x-model="editingBuffer[task.id].text"
-                      @blur="saveTextEdit(task)"
-                      class="border border-gray-300 rounded p-1 w-full dark:bg-gray-900 dark:text-white"
-                      type="text"
-                      x-cloak>
+                       x-model="editingBuffer[task.id].text"
+                       @blur="saveTextEdit(task)"
+                       class="border border-gray-300 rounded p-1 w-full dark:bg-gray-900 dark:text-white"
+                       type="text" x-cloak>
               </div>
             </div>
-            
+            <!-- Task Details -->
             <div class="flex flex-wrap items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
-              <span x-show="!editingStates[task.id]?.date" @click="enableDateEdit(task)" x-text="new Date(task.due_date).toLocaleString()" 
-                    class="cursor-pointer mr-2"></span>
+              <span x-show="!editingStates[task.id]?.date" @click="enableDateEdit(task)"
+                    x-text="new Date(task.due_date).toLocaleString()" class="cursor-pointer mr-2"></span>
               <input x-show="editingStates[task.id] && editingStates[task.id].date"
-                    x-model="editingBuffer[task.id].date"
-                    type="datetime-local"
-                    @blur="saveDateEdit(task)"
-                    class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white"
-                    x-cloak>
+                     x-model="editingBuffer[task.id].date" type="datetime-local"
+                     @blur="saveDateEdit(task)" class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white" x-cloak>
               <div class="flex items-center gap-2 mt-2 md:mt-0">
                 <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer">
-                  <span x-show="!editingStates[task.id]?.priority" 
+                  <span x-show="!editingStates[task.id]?.priority"
                         x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
                   <template x-if="editingStates[task.id]?.priority">
                     <label :for="'priorityEdit' + task.id" class="sr-only">Edit priority</label>
-                    <select :id="'priorityEdit' + task.id" x-model="editingBuffer[task.id]?.priority" @blur="savePriorityEdit(task)" 
-                            class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white">
+                    <select :id="'priorityEdit' + task.id" x-model="editingBuffer[task.id]?.priority"
+                            @blur="savePriorityEdit(task)" class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white">
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                     </select>
                   </template>
                 </span>
-                <span x-show="!editingStates[task.id]?.category && task.category" @click="enableCategoryEdit(task)" 
+                <span x-show="!editingStates[task.id]?.category && task.category"
+                      @click="enableCategoryEdit(task)" :id="'category' + task.id"
                       class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 cursor-pointer">
                   <span x-text="task.category"></span>
                 </span>
-                <span x-show="!editingStates[task.id]?.category && !task.category" @click="enableCategoryEdit(task)" 
-                      class="text-xs italic text-gray-400 cursor-pointer">+ Add Category</span>
+                <span x-show="!editingStates[task.id]?.category && !task.category"
+                      @click="enableCategoryEdit(task)" class="text-xs italic text-gray-400 cursor-pointer">
+                  + Add Category
+                </span>
                 <input x-show="editingStates[task.id] && editingStates[task.id].category"
-                        x-model="editingBuffer[task.id].category"
-                        @blur="saveCategoryEdit(task)"
-                        class="border border-gray-300 rounded p-1 text-xs dark:bg-gray-900 dark:text-white"
-                        type="text" placeholder="Category" x-cloak>
+                       x-model="editingBuffer[task.id].category" @blur="saveCategoryEdit(task)"
+                       class="border border-gray-300 rounded p-1 text-xs dark:bg-gray-900 dark:text-white"
+                       type="text" placeholder="Category" x-cloak>
               </div>
             </div>
-            
+            <!-- Progress and Toggle Subtasks -->
             <div class="flex items-center justify-between mb-2">
               <div class="flex flex-col w-full pr-2">
                 <div class="text-xs mb-1">
@@ -248,26 +261,30 @@
                 <span x-text="collapsedTasks[task.id] ? 'Show Subtasks' : 'Hide Subtasks'"></span>
               </button>
             </div>
-            
+            <!-- Subtasks List -->
             <div class="pl-8 border-l border-gray-300 dark:border-gray-700" x-show="!collapsedTasks[task.id]" x-transition>
-              <template x-for="subtask in subtasks[task.id]" :key="subtask.id">
+              <template x-for="(subtask, idx) in subtasks[task.id]" :key="subtask.id">
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
                     <label :for="'subtaskCheckbox' + subtask.id" class="flex items-center gap-2">
-                      <input type="checkbox" :id="'subtaskCheckbox' + subtask.id" 
-                             :checked="subtask.completed" @change="toggleSubtaskCompletion(task.id, subtask)" 
+                      <input :id="'subtaskCheckbox' + subtask.id" type="checkbox" :checked="subtask.completed"
+                             @change="toggleSubtaskCompletion(task.id, subtask)"
                              class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                       <span x-text="subtask.subtask" :class="subtask.completed ? 'line-through text-gray-400' : ''"></span>
                     </label>
                   </div>
-                  <button @click="deleteSubtask(task.id, subtask.id)" class="text-red-500 hover:text-red-700 text-sm">Delete</button>
+                  <button @click="deleteSubtask(task.id, subtask.id)" class="text-red-500 hover:text-red-700 text-sm">
+                    Delete
+                  </button>
                 </div>
               </template>
               <div class="flex items-center gap-2 mt-3">
-                <input x-model="newSubtask[task.id]" type="text" placeholder="Add subtask..." 
+                <input x-model="newSubtask[task.id]" type="text" placeholder="Add subtask..."
                        class="w-full p-2 border rounded-md dark:bg-gray-900 dark:text-white">
-                <button @click="addSubtask(task.id, newSubtask[task.id]); newSubtask[task.id] = ''" 
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md">➕</button>
+                <button @click="addSubtask(task.id, newSubtask[task.id]); newSubtask[task.id] = ''"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md">
+                  ➕
+                </button>
               </div>
             </div>
           </div>
@@ -278,482 +295,540 @@
   
   <!-- MAIN ALPINE COMPONENT SCRIPT -->
   <script>
-  function mainApp() {
-    return {
-      darkMode: false,
-      collapsedTasks: {},
-      tasks: [],
-      subtasks: {},
-      newTask: '',
-      newDueDate: '',
-      newPriority: 'medium',
-      newCategory: '',
-      searchQuery: '',
-      filterPriority: '',
-      filterCategory: '',
-      sortOption: 'dueAsc',
-      editingStates: {},
-      editingBuffer: {},
-      showAutoAddModal: false,
-      aiAutoAddResult: { main_task: '', subtasks: [] },
-      isAILoading: false,
-      notifiedTasks: new Set(),
-      notificationInterval: null,
-      newSubtask: {},
-      isOffline: false,
-
-      initEdit(taskId, field, value) {
+    function mainApp() {
+      return {
+        darkMode: false,
+        collapsedTasks: {},
+        tasks: [],
+        subtasks: {},
+        newTask: '',
+        newDueDate: '',
+        newPriority: 'medium',
+        newCategory: '',
+        searchQuery: '',
+        filterPriority: '',
+        filterCategory: '',
+        sortOption: 'dueAsc',
+        editingStates: {},
+        editingBuffer: {},
+        showAutoAddModal: false,
+        aiAutoAddResult: { main_task: '', subtasks: [] },
+        isAILoading: false,
+        notifiedTasks: new Set(),
+        notificationInterval: null,
+        newSubtask: {},
+        isOffline: false,
+        offlinePending: false,
+        
+        // Toggle subtask visibility
+        toggleSubtasks(taskId) {
+          this.collapsedTasks[taskId] = !this.collapsedTasks[taskId];
+        },
+        
+        // IndexedDB Helpers for Offline Edits
+        openOfflineEditsDB() {
+          return new Promise((resolve, reject) => {
+            const request = indexedDB.open('neurotask-db', 1);
+            request.onupgradeneeded = event => {
+              const db = event.target.result;
+              if (!db.objectStoreNames.contains('offlineEdits')) {
+                db.createObjectStore('offlineEdits', { keyPath: 'id', autoIncrement: true });
+              }
+            };
+            request.onsuccess = event => resolve(event.target.result);
+            request.onerror = event => reject(event.target.error);
+          });
+        },
+        addOfflineEdit(edit) {
+          return this.openOfflineEditsDB().then(db => {
+            return new Promise((resolve, reject) => {
+              const transaction = db.transaction('offlineEdits', 'readwrite');
+              const store = transaction.objectStore('offlineEdits');
+              const request = store.add(edit);
+              request.onsuccess = () => resolve();
+              request.onerror = e => reject(e.target.error);
+            });
+          });
+        },
+        checkPendingOfflineEdits() {
+          return this.openOfflineEditsDB().then(db => {
+            return new Promise((resolve, reject) => {
+              const transaction = db.transaction('offlineEdits', 'readonly');
+              const store = transaction.objectStore('offlineEdits');
+              const request = store.getAll();
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = e => reject(e.target.error);
+            });
+          });
+        },
+        updateOfflinePendingStatus() {
+          this.checkPendingOfflineEdits().then(edits => {
+            this.offlinePending = edits && edits.length > 0;
+          }).catch(err => console.error('Error checking offline edits:', err));
+        },
+        
+        // INIT METHOD
+        async init() {
+          const storedTheme = localStorage.getItem('theme');
+          this.darkMode = (storedTheme === 'dark');
+          try {
+            this.tasks = await this.fetchTasks();
+          } catch (err) {
+            console.error("Error fetching tasks:", err);
+          }
+          this.tasks.forEach(task => {
+            if (!(task.id in this.editingBuffer)) {
+              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
+            }
+            if (!(task.id in this.collapsedTasks)) {
+              this.collapsedTasks[task.id] = false;
+            }
+          });
+          for (let t of this.tasks) {
+            try {
+              this.subtasks[t.id] = await this.fetchSubtasks(t.id);
+            } catch (err) {
+              console.error("Error fetching subtasks for task", t.id, err);
+            }
+          }
+          this.initNotifications();
+          this.initDragAndDrop();
+          this.checkConnectionStatus();
+          window.addEventListener('online', () => {
+            this.isOffline = false;
+            this.updateOfflinePendingStatus();
+            this.refreshTasksWithSubtasks();
+          });
+          window.addEventListener('offline', () => {
+            this.isOffline = true;
+            this.updateOfflinePendingStatus();
+          });
+          this.updateOfflinePendingStatus();
+        },
+        
+        // initDragAndDrop() with onClone callback to remove Alpine bindings from fallback clone
+        initDragAndDrop() {
+          const el = document.getElementById('task-list');
+          if (!el) return;
+          const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+          new Sortable(el, {
+            animation: 150,
+            handle: '.drag-handle',
+            forceFallback: isMobile,
+            fallbackOnBody: isMobile,
+            fallbackTolerance: 10,
+            onClone: function(evt) {
+              const clone = evt.clone;
+              // Remove attributes starting with "x-" from the clone and its descendants.
+              [...clone.attributes].forEach(attr => {
+                if (attr.name.startsWith('x-')) {
+                  clone.removeAttribute(attr.name);
+                }
+              });
+              clone.querySelectorAll('*').forEach(el => {
+                [...el.attributes].forEach(attr => {
+                  if (attr.name.startsWith('x-')) {
+                    el.removeAttribute(attr.name);
+                  }
+                });
+              });
+            },
+            onEnd: (evt) => this.handleDragEnd(evt)
+          });
+        },
+        
+        // Editing helpers
+        initEdit(taskId, field, value) {
           if (!this.editingStates[taskId]) {
-              this.editingStates[taskId] = {};
+            this.editingStates[taskId] = {};
           }
           if (!this.editingBuffer[taskId]) {
-              this.editingBuffer[taskId] = { text: '', date: '', priority: '', category: '' };
+            this.editingBuffer[taskId] = { text: '', date: '', priority: '', category: '' };
           }
           this.editingStates[taskId][field] = true;
           this.editingBuffer[taskId][field] = value ?? '';
-      },
-
-      async saveEdit(task, field, payloadKey) {
+        },
+        async saveEdit(task, field, payloadKey) {
           if (!this.editingBuffer[task.id]) return;
           const newValue = this.editingBuffer[task.id][field] || task[payloadKey];
           const resp = await fetch(`/tasks/${task.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ [payloadKey]: newValue })
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [payloadKey]: newValue })
           });
           if (resp.ok) {
-              task[payloadKey] = newValue;
+            task[payloadKey] = newValue;
           }
           this.editingStates[task.id][field] = false;
-      },
-
-      toggleSubtasks(taskId) {
-        this.collapsedTasks[taskId] = !this.collapsedTasks[taskId];
-        this.$nextTick(() => {
-          this.saveCollapsedState(taskId);
-        });
-      },
-
-      saveCollapsedState(taskId) {
-        // Optionally save collapsed state to localStorage.
-      },
-
-      async init() {
-        const storedTheme = localStorage.getItem('theme');
-        this.darkMode = (storedTheme === 'dark');
-        this.tasks = await this.fetchTasks();
-        this.tasks.forEach(task => {
-          if (!(task.id in this.editingBuffer)) {
-            this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
+        },
+        enableTextEdit(task) {
+          this.initEdit(task.id, "text", task.task);
+        },
+        saveTextEdit(task) {
+          this.saveEdit(task, "text", "task");
+        },
+        enableDateEdit(task) {
+          const dateVal = task.due_date ? task.due_date.substring(0,16) : "";
+          this.initEdit(task.id, "date", dateVal);
+        },
+        saveDateEdit(task) {
+          this.saveEdit(task, "date", "due_date");
+        },
+        enablePriorityEdit(task) {
+          this.initEdit(task.id, "priority", task.priority);
+        },
+        savePriorityEdit(task) {
+          this.saveEdit(task, "priority", "priority");
+        },
+        enableCategoryEdit(task) {
+          this.initEdit(task.id, "category", task.category || "");
+        },
+        saveCategoryEdit(task) {
+          this.saveEdit(task, "category", "category");
+        },
+        
+        // Drag-and-drop handler
+        async handleDragEnd(evt) {
+          const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
+          const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
+          reorderedTasks.splice(evt.newIndex, 0, movedItem);
+          this.tasks = reorderedTasks;
+          try {
+            await fetch('/tasks/reorder', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                updates: reorderedTasks.map((task, index) => ({
+                  id: task.id,
+                  sort_order: index
+                }))
+              })
+            });
+          } catch (err) {
+            console.error('Reorder failed:', err);
           }
-          if (!(task.id in this.collapsedTasks)) {
-            this.collapsedTasks[task.id] = false;
-          }
-        });
-        for (let t of this.tasks) {
-          this.subtasks[t.id] = await this.fetchSubtasks(t.id);
-        }
-        this.initNotifications();
-        this.initDragAndDrop();
-        this.checkConnectionStatus();
-        window.addEventListener('online', () => { this.isOffline = false; });
-        window.addEventListener('offline', () => { this.isOffline = true; });
-      },
-
-      toggleDarkMode() {
-        this.darkMode = !this.darkMode;
-        localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
-      },
-
-      initDragAndDrop() {
-        const el = document.getElementById('task-list');
-        if (!el) return;
-        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-        new Sortable(el, {
-          animation: 150,
-          handle: '.drag-handle',
-          draggable: '.task-item',
-          forceFallback: isTouchDevice,
-          fallbackOnBody: isTouchDevice,
-          useTransform: false,
-          fallbackTolerance: 0,
-          onEnd: (evt) => {
-            this.handleDragEnd(evt);
-          }
-        });
-      },
-
-      async handleDragEnd(evt) {
-        const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
-        const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
-        reorderedTasks.splice(evt.newIndex, 0, movedItem);
-        this.tasks = reorderedTasks;
-        try {
-          await fetch('/tasks/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              updates: reorderedTasks.map((task, index) => ({
-                id: task.id,
-                sort_order: index
-              }))
-            })
-          });
-        } catch (err) {
-          console.error('Reorder failed:', err);
-        }
-      },
-
-      subtaskProgress(taskId) {
-        const subs = this.subtasks[taskId] || [];
-        const total = subs.length;
-        const completed = subs.filter(s => s.completed).length;
-        const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
-        return { total, completed, percent };
-      },
-
-      enableTextEdit(task) {
-          if (!this.editingBuffer[task.id]) {
-              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
-          }
-          this.initEdit(task.id, 'text', task.task);
-      },
-
-      saveTextEdit(task) {
-        return this.saveEdit(task, 'text', 'task');
-      },
-
-      enableDateEdit(task) {
-          if (!this.editingBuffer[task.id]) {
-              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
-          }
-          this.initEdit(task.id, 'date', (task.due_date || '').substring(0, 16));
-      },
-
-      saveDateEdit(task) {
-        return this.saveEdit(task, 'date', 'due_date');
-      },
-
-      enablePriorityEdit(task) {
-        this.initEdit(task.id, 'priority', task.priority);
-      },
-
-      savePriorityEdit(task) {
-        return this.saveEdit(task, 'priority', 'priority');
-      },
-
-      enableCategoryEdit(task) {
-        this.initEdit(task.id, 'category', task.category || '');
-      },
-
-      saveCategoryEdit(task) {
-        return this.saveEdit(task, 'category', 'category');
-      },
-
-      async fetchTasks() {
-        try {
-          const resp = await fetch('/tasks');
-          if (!resp.ok) throw new Error('Failed to fetch tasks');
-          return await resp.json();
-        } catch (err) {
-          console.error('fetchTasks error:', err);
-          return [];
-        }
-      },
-
-      async fetchSubtasks(taskId) {
-        try {
-          const resp = await fetch(`/tasks/${taskId}/subtasks`);
-          if (!resp.ok) return [];
-          return await resp.json();
-        } catch (err) {
-          console.error('fetchSubtasks error:', err);
-          return [];
-        }
-      },
-
-      async addTask() {
-        if (!this.newTask.trim()) {
-          alert('Please enter a task or AI prompt!');
-          return;
-        }
-        try {
-          const resp = await fetch('/tasks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              task: this.newTask,
-              due_date: this.newDueDate || new Date().toISOString(),
-              priority: this.newPriority,
-              category: this.newCategory,
-              sort_order: this.tasks.length
-            })
-          });
-          if (!resp.ok) throw new Error('Failed to add task');
-          this.newTask = '';
-          this.newDueDate = '';
-          this.newPriority = 'medium';
-          this.newCategory = '';
-          await this.refreshTasksWithSubtasks();
-        } catch (err) {
-          console.error('Add Task error:', err);
-          alert('Add Task error: ' + err.message);
-        }
-      },
-
-      async deleteTask(taskId) {
-        try {
-          const resp = await fetch(`/tasks/${taskId}`, { method: 'DELETE' });
-          if (!resp.ok) throw new Error('Failed to delete task');
-          this.tasks = this.tasks.filter(t => t.id !== taskId);
-          delete this.subtasks[taskId];
-        } catch (err) {
-          console.error('Delete Task error:', err);
-          alert('Delete Task error: ' + err.message);
-        }
-      },
-
-      async toggleCompletion(taskId, completed) {
-        try {
-          const resp = await fetch(`/tasks/${taskId}/complete`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed })
-          });
-          if (!resp.ok) throw new Error('Failed to update completion');
-          const idx = this.tasks.findIndex(t => t.id === taskId);
-          this.tasks[idx].completed = completed;
-        } catch (err) {
-          console.error('Toggle completion error:', err);
-        }
-      },
-
-      async addSubtask(taskId, text) {
-        if (!text.trim()) {
-          alert('Enter subtask text!');
-          return;
-        }
-        try {
-          const resp = await fetch(`/tasks/${taskId}/subtasks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subtask: text })
-          });
-          if (!resp.ok) {
-            console.error('Failed to add subtask');
+        },
+        subtaskProgress(taskId) {
+          const subs = this.subtasks[taskId] || [];
+          const total = subs.length;
+          const completed = subs.filter(s => s.completed).length;
+          const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+          return { total, completed, percent };
+        },
+        
+        // Task CRUD methods
+        async addTask() {
+          if (!this.newTask.trim()) {
+            alert('Please enter a task or AI prompt!');
             return;
           }
-          this.subtasks[taskId] = await this.fetchSubtasks(taskId);
-        } catch (err) {
-          console.error('Add subtask error:', err);
-        }
-      },
-
-      async toggleSubtaskCompletion(taskId, subtask) {
-        try {
-          const resp = await fetch(`/tasks/${taskId}/subtasks/${subtask.id}/complete`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed: !subtask.completed })
-          });
-          if (!resp.ok) {
-            console.error('Failed to toggle subtask completion');
-            return;
-          }
-          subtask.completed = !subtask.completed;
-        } catch (err) {
-          console.error('Toggle subtask error:', err);
-        }
-      },
-
-      async deleteSubtask(taskId, subtaskId) {
-        try {
-          const resp = await fetch(`/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
-          if (!resp.ok) {
-            console.error('Failed to delete subtask');
-            return;
-          }
-          this.subtasks[taskId] = await this.fetchSubtasks(taskId);
-        } catch (err) {
-          console.error('Delete subtask error:', err);
-        }
-      },
-
-      async refreshTasksWithSubtasks() {
-        const preservedCollapsed = { ...this.collapsedTasks };
-        this.tasks = await this.fetchTasks();
-        this.tasks.forEach(task => {
-          if (!(task.id in preservedCollapsed)) {
-            preservedCollapsed[task.id] = false;
-          }
-          if (!(task.id in this.editingBuffer)) {
-            this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
-          }
-        });
-        const newSubtasks = {};
-        await Promise.all(this.tasks.map(async task => {
-          newSubtasks[task.id] = await this.fetchSubtasks(task.id);
-        }));
-        this.subtasks = newSubtasks;
-        this.collapsedTasks = preservedCollapsed;
-      },
-
-      async aiAutoAdd() {
-        if (!this.newTask.trim()) {
-          alert('Please enter a task or AI prompt first!');
-          return;
-        }
-        try {
-          this.isAILoading = true;
-          const resp = await fetch('/ai/autogen', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: this.newTask })
-          });
-          const data = await resp.json();
-          if (!resp.ok) {
-            throw new Error(data.error || 'AI auto-add failed');
-          }
-          this.aiAutoAddResult = data;
-          this.showAutoAddModal = true;
-        } catch (err) {
-          console.error('AI Auto-Add error:', err);
-          alert('AI Auto-Add error: ' + err.message);
-        } finally {
-          this.isAILoading = false;
-        }
-      },
-
-      editAutoAdd() {
-        this.newTask = this.aiAutoAddResult.main_task;
-        this.showAutoAddModal = false;
-      },
-
-      async addAutoAdd() {
-        try {
-          const createResp = await fetch('/tasks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              task: this.aiAutoAddResult.main_task,
-              due_date: this.newDueDate || new Date().toISOString(),
-              priority: this.newPriority,
-              category: this.newCategory,
-              sort_order: this.tasks.length
-            })
-          });
-          if (!createResp.ok) throw new Error('Failed to create main task');
-          await this.refreshTasksWithSubtasks();
-          const newTask = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
-          if (!newTask) {
-            throw new Error('Could not locate newly created task');
-          }
-          if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
-            for (let item of this.aiAutoAddResult.subtasks) {
-              const subResp = await fetch(`/tasks/${newTask.id}/subtasks`, {
+          const payload = {
+            task: this.newTask,
+            due_date: this.newDueDate || new Date().toISOString(),
+            priority: this.newPriority,
+            category: this.newCategory,
+            sort_order: this.tasks.length
+          };
+          if (!navigator.onLine) {
+            try {
+              await this.addOfflineEdit({
+                url: '/tasks',
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subtask: item })
+                payload: { ...payload, type: 'create' }
               });
-              if (!subResp.ok) {
-                console.error('Failed to add subtask:', item);
+              if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                navigator.serviceWorker.ready.then(reg => reg.sync.register('sync-offline-edits'))
+                  .catch(err => console.error('Sync registration failed:', err));
               }
+              alert('Task saved offline. It will sync when you are back online.');
+              this.newTask = '';
+              this.newDueDate = '';
+              this.newPriority = 'medium';
+              this.newCategory = '';
+              this.offlinePending = true;
+              return;
+            } catch (err) {
+              console.error('Error saving offline task:', err);
+              alert('Failed to save task offline.');
+              return;
             }
-            this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
           }
+          try {
+            const resp = await fetch('/tasks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw new Error('Failed to add task');
+            this.newTask = '';
+            this.newDueDate = '';
+            this.newPriority = 'medium';
+            this.newCategory = '';
+            await this.refreshTasksWithSubtasks();
+          } catch (err) {
+            console.error('Add Task error:', err);
+            alert('Add Task error: ' + err.message);
+          }
+          this.updateOfflinePendingStatus();
+        },
+        async deleteTask(taskId) {
+          try {
+            const resp = await fetch(`/tasks/${taskId}`, { method: 'DELETE' });
+            if (!resp.ok) throw new Error('Failed to delete task');
+            this.tasks = this.tasks.filter(t => t.id !== taskId);
+            delete this.subtasks[taskId];
+          } catch (err) {
+            console.error('Delete Task error:', err);
+            alert('Delete Task error: ' + err.message);
+          }
+        },
+        async toggleCompletion(taskId, completed) {
+          try {
+            const resp = await fetch(`/tasks/${taskId}/complete`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ completed })
+            });
+            if (!resp.ok) throw new Error('Failed to update completion');
+            const idx = this.tasks.findIndex(t => t.id === taskId);
+            this.tasks[idx].completed = completed;
+          } catch (err) {
+            console.error('Toggle completion error:', err);
+          }
+        },
+        async addSubtask(taskId, text) {
+          if (!text.trim()) {
+            alert('Enter subtask text!');
+            return;
+          }
+          try {
+            const resp = await fetch(`/tasks/${taskId}/subtasks`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subtask: text })
+            });
+            if (!resp.ok) {
+              console.error('Failed to add subtask');
+              return;
+            }
+            this.subtasks[taskId] = await this.fetchSubtasks(taskId);
+          } catch (err) {
+            console.error('Add subtask error:', err);
+          }
+        },
+        async toggleSubtaskCompletion(taskId, subtask) {
+          try {
+            const resp = await fetch(`/tasks/${taskId}/subtasks/${subtask.id}/complete`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ completed: !subtask.completed })
+            });
+            if (!resp.ok) {
+              console.error('Failed to toggle subtask completion');
+              return;
+            }
+            subtask.completed = !subtask.completed;
+          } catch (err) {
+            console.error('Toggle subtask error:', err);
+          }
+        },
+        async deleteSubtask(taskId, subtaskId) {
+          try {
+            const resp = await fetch(`/tasks/${taskId}/subtasks/${subtaskId}`, { method: 'DELETE' });
+            if (!resp.ok) {
+              console.error('Failed to delete subtask');
+              return;
+            }
+            this.subtasks[taskId] = await this.fetchSubtasks(taskId);
+          } catch (err) {
+            console.error('Delete subtask error:', err);
+          }
+        },
+        async refreshTasksWithSubtasks() {
+          const preservedCollapsed = { ...this.collapsedTasks };
+          this.tasks = await this.fetchTasks();
+          this.tasks.forEach(task => {
+            if (!(task.id in preservedCollapsed)) {
+              preservedCollapsed[task.id] = false;
+            }
+            if (!(task.id in this.editingBuffer)) {
+              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
+            }
+          });
+          const newSubtasks = {};
+          await Promise.all(this.tasks.map(async task => {
+            newSubtasks[task.id] = await this.fetchSubtasks(task.id);
+          }));
+          this.subtasks = newSubtasks;
+          this.collapsedTasks = preservedCollapsed;
+        },
+        async aiAutoAdd() {
+          if (!this.newTask.trim()) {
+            alert('Please enter a task or AI prompt first!');
+            return;
+          }
+          try {
+            this.isAILoading = true;
+            const resp = await fetch('/ai/autogen', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: this.newTask })
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+              throw new Error(data.error || 'AI auto-add failed');
+            }
+            this.aiAutoAddResult = data;
+            this.showAutoAddModal = true;
+          } catch (err) {
+            console.error('AI Auto-Add error:', err);
+            alert('AI Auto-Add error: ' + err.message);
+          } finally {
+            this.isAILoading = false;
+          }
+        },
+        editAutoAdd() {
+          this.newTask = this.aiAutoAddResult.main_task;
           this.showAutoAddModal = false;
-          alert('AI Auto-Add: Task + Subtasks created!');
-        } catch (err) {
-          console.error('AddAutoAdd error:', err);
-          alert('Error auto-adding task: ' + err.message);
-        }
-      },
-
-      filteredAndSortedTasks() {
-        let filtered = this.tasks.filter(task => {
-          const matchesSearch = this.searchQuery
-            ? task.task.toLowerCase().includes(this.searchQuery.toLowerCase())
-            : true;
-          const matchesPriority = this.filterPriority
-            ? (task.priority === this.filterPriority)
-            : true;
-          const matchesCategory = this.filterCategory
-            ? (task.category || '').toLowerCase().includes(this.filterCategory.toLowerCase())
-            : true;
-          return matchesSearch && matchesPriority && matchesCategory;
-        });
-        if (this.sortOption === 'dueAsc') {
-          filtered.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
-        } else if (this.sortOption === 'dueDesc') {
-          filtered.sort((a, b) => new Date(b.due_date) - new Date(a.due_date));
-        } else if (this.sortOption === 'priorityDesc') {
-          filtered.sort((a, b) => this.priorityValue(b.priority) - this.priorityValue(a.priority));
-        } else if (this.sortOption === 'priorityAsc') {
-          filtered.sort((a, b) => this.priorityValue(a.priority) - this.priorityValue(b.priority));
-        } else {
-          filtered.sort((a, b) => a.sort_order - b.sort_order);
-        }
-        return filtered;
-      },
-
-      priorityValue(priority) {
-        if (priority === 'high') return 3;
-        if (priority === 'medium') return 2;
-        if (priority === 'low') return 1;
-        return 0;
-      },
-
-      initNotifications() {
-        if ('Notification' in window) {
-          Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-              setTimeout(() => this.checkDueTasks(), 5000);
-              this.notificationInterval = setInterval(() => this.checkDueTasks(), 60000);
-            } else {
-              console.warn("Notifications denied by user.");
+        },
+        async addAutoAdd() {
+          try {
+            const createResp = await fetch('/tasks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                task: this.aiAutoAddResult.main_task,
+                due_date: this.newDueDate || new Date().toISOString(),
+                priority: this.newPriority,
+                category: this.newCategory,
+                sort_order: this.tasks.length
+              })
+            });
+            if (!createResp.ok) throw new Error('Failed to create main task');
+            await this.refreshTasksWithSubtasks();
+            const newTask = this.tasks.find(t => t.task === this.aiAutoAddResult.main_task);
+            if (!newTask) {
+              throw new Error('Could not locate newly created task');
             }
-          }).catch(error => console.error("Notification permission error:", error));
-        }
-      },
-
-      async checkDueTasks() {
-        try {
-          const resp = await fetch('/tasks/due_soon');
-          const dueTasks = await resp.json();
-          dueTasks.forEach(task => {
-            if (!this.notifiedTasks.has(task.id)) {
-              this.showNotification(task);
-              this.notifiedTasks.add(task.id);
+            if (this.aiAutoAddResult.subtasks && this.aiAutoAddResult.subtasks.length) {
+              for (let item of this.aiAutoAddResult.subtasks) {
+                const subResp = await fetch(`/tasks/${newTask.id}/subtasks`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ subtask: item })
+                });
+                if (!subResp.ok) {
+                  console.error('Failed to add subtask:', item);
+                }
+              }
+              this.subtasks[newTask.id] = await this.fetchSubtasks(newTask.id);
             }
+            this.showAutoAddModal = false;
+            alert('AI Auto-Add: Task + Subtasks created!');
+          } catch (err) {
+            console.error('AddAutoAdd error:', err);
+            alert('Error auto-adding task: ' + err.message);
+          }
+        },
+        filteredAndSortedTasks() {
+          let filtered = this.tasks.filter(task => {
+            const matchesSearch = this.searchQuery
+              ? task.task.toLowerCase().includes(this.searchQuery.toLowerCase())
+              : true;
+            const matchesPriority = this.filterPriority
+              ? (task.priority === this.filterPriority)
+              : true;
+            const matchesCategory = this.filterCategory
+              ? (task.category || '').toLowerCase().includes(this.filterCategory.toLowerCase())
+              : true;
+            return matchesSearch && matchesPriority && matchesCategory;
           });
-        } catch (err) {
-          console.error('checkDueTasks error:', err);
-        }
-      },
-
-      showNotification(task) {
-        if (Notification.permission === 'granted') {
-          new Notification(`Task Due Soon: ${task.task}`, {
-            body: `Due at ${new Date(task.due_date).toLocaleString()}`,
-            icon: '/static/notification-icon.png',
-            silent: false
+          if (this.sortOption === 'dueAsc') {
+            filtered.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+          } else if (this.sortOption === 'dueDesc') {
+            filtered.sort((a, b) => new Date(b.due_date) - new Date(a.due_date));
+          } else if (this.sortOption === 'priorityDesc') {
+            filtered.sort((a, b) => this.priorityValue(b.priority) - this.priorityValue(a.priority));
+          } else if (this.sortOption === 'priorityAsc') {
+            filtered.sort((a, b) => this.priorityValue(a.priority) - this.priorityValue(b.priority));
+          } else {
+            filtered.sort((a, b) => a.sort_order - b.sort_order);
+          }
+          return filtered;
+        },
+        priorityValue(priority) {
+          if (priority === 'high') return 3;
+          if (priority === 'medium') return 2;
+          if (priority === 'low') return 1;
+          return 0;
+        },
+        initNotifications() {
+          if ('Notification' in window) {
+            Notification.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                setTimeout(() => this.checkDueTasks(), 5000);
+                this.notificationInterval = setInterval(() => this.checkDueTasks(), 60000);
+              } else {
+                console.warn("Notifications denied by user.");
+              }
+            }).catch(error => console.error("Notification permission error:", error));
+          }
+        },
+        async checkDueTasks() {
+          try {
+            const resp = await fetch('/tasks/due_soon');
+            const dueTasks = await resp.json();
+            dueTasks.forEach(task => {
+              if (!this.notifiedTasks.has(task.id)) {
+                this.showNotification(task);
+                this.notifiedTasks.add(task.id);
+              }
+            });
+          } catch (err) {
+            console.error('checkDueTasks error:', err);
+          }
+        },
+        showNotification(task) {
+          if (Notification.permission === 'granted') {
+            new Notification(`Task Due Soon: ${task.task}`, {
+              body: `Due at ${new Date(task.due_date).toLocaleString()}`,
+              icon: '/static/notification-icon.png',
+              silent: false
+            });
+          }
+        },
+        testNotification() {
+          this.showNotification({
+            id: 0,
+            task: "Test Notification",
+            due_date: new Date().toISOString()
           });
+        },
+        checkConnectionStatus() {
+          this.isOffline = !navigator.onLine;
+        },
+        async fetchTasks() {
+          try {
+            const resp = await fetch('/tasks');
+            if (!resp.ok) throw new Error('Failed to fetch tasks');
+            return await resp.json();
+          } catch (err) {
+            console.error('fetchTasks error:', err);
+            return [];
+          }
+        },
+        async fetchSubtasks(taskId) {
+          try {
+            const resp = await fetch(`/tasks/${taskId}/subtasks`);
+            if (!resp.ok) return [];
+            return await resp.json();
+          } catch (err) {
+            console.error('fetchSubtasks error:', err);
+            return [];
+          }
         }
-      },
-
-      testNotification() {
-        this.showNotification({
-          id: 0,
-          task: "Test Notification",
-          due_date: new Date().toISOString()
-        });
-      },
-
-      checkConnectionStatus() {
-        this.isOffline = !navigator.onLine;
-      }
-    };
-  }
+      };
+    }
   </script>
   
   <!-- Service Worker Registration -->
@@ -773,30 +848,26 @@
     const installButton = document.getElementById('install-app-button');
     
     window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent the default mini-infobar from appearing on mobile.
       e.preventDefault();
       deferredPrompt = e;
-      // Show the install button.
       installButton.style.display = 'block';
     });
     
     installButton.addEventListener('click', async () => {
-      // Hide the install button.
       installButton.style.display = 'none';
-      // Show the install prompt.
       deferredPrompt.prompt();
-      // Wait for the user's response.
       const { outcome } = await deferredPrompt.userChoice;
       console.log(`User response to the install prompt: ${outcome}`);
-      // Optionally, track installation metrics here.
       deferredPrompt = null;
     });
   </script>
   
-  <!-- Offline Status Banner -->
-  <div x-show="isOffline" class="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">
-    ⚠️ You're offline - viewing cached content
-  </div>
 </body>
 </html>
+
+
+
+
+
+
 
