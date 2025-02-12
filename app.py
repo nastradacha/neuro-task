@@ -10,7 +10,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_from_directory  # <-- Added send_from_directory
 from flask_cors import CORS
 from flask_sse import sse
 from dotenv import load_dotenv
@@ -31,7 +31,6 @@ app.register_blueprint(sse, url_prefix="/stream")
 # OpenAI Key will be used in AI-related routes
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-
 def get_db():
     """
     Returns a SQLite connection with row_factory set to sqlite3.Row.
@@ -39,7 +38,6 @@ def get_db():
     conn = sqlite3.connect('tasks.db')
     conn.row_factory = sqlite3.Row
     return conn
-
 
 # -----------------------------------------------------------------------------
 # INDEX ROUTE
@@ -50,27 +48,21 @@ def index():
     """Render the main index page."""
     return render_template('index.html')
 
-
 # -----------------------------------------------------------------------------
 # TASKS ROUTES
 # -----------------------------------------------------------------------------
 
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
-    """
-    Retrieve all tasks, ordered by due_date.
-    Returns a JSON list of tasks.
-    """
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
         SELECT id, task, due_date, priority, completed, category, sort_order
         FROM tasks
-        ORDER BY sort_order ASC, due_date  -- Add sort_order as primary sort
+        ORDER BY sort_order ASC, due_date
     ''')
     tasks = [dict(row) for row in cursor.fetchall()]
     return jsonify(tasks)
-
 
 @app.route('/tasks', methods=['POST'])
 def create_task():
@@ -81,7 +73,7 @@ def create_task():
 
     due_date = data.get('due_date') or ''
     priority = data.get('priority', 'medium')
-    category = data.get('category', '').strip()  # <--- read category
+    category = data.get('category', '').strip()
 
     conn = get_db()
     cursor = conn.cursor()
@@ -93,31 +85,19 @@ def create_task():
 
     return jsonify({'status': 'success'}), 201
 
-
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
-    """
-    Delete a task by ID.
-    Also deletes all subtasks under that task, then publishes an SSE event.
-    """
     conn = get_db()
     cursor = conn.cursor()
-    # Delete subtasks first
     cursor.execute('DELETE FROM subtasks WHERE parent_task_id = ?', (task_id,))
-    # Delete the parent task
     cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
     conn.commit()
 
     sse.publish({"message": "update"}, type='task_update')
     return jsonify({'status': 'success'})
 
-
 @app.route('/tasks/<int:task_id>/complete', methods=['PATCH'])
 def toggle_completion(task_id):
-    """
-    Toggle the 'completed' status of a task.
-    Expects JSON body with {"completed": true/false}.
-    """
     data = request.json
     conn = get_db()
     cursor = conn.cursor()
@@ -129,13 +109,8 @@ def toggle_completion(task_id):
     conn.commit()
     return jsonify({'status': 'success'})
 
-
 @app.route('/tasks/due_soon', methods=['GET'])
 def get_due_tasks():
-    """
-    Retrieve tasks whose due_date is within the NOTIFICATION_WINDOW (default 30 minutes).
-    Returns only incomplete tasks.
-    """
     conn = get_db()
     cursor = conn.cursor()
 
@@ -152,7 +127,6 @@ def get_due_tasks():
 
     tasks = [dict(row) for row in cursor.fetchall()]
     return jsonify(tasks)
-
 
 @app.route('/tasks/<int:task_id>', methods=['PATCH'])
 def update_task(task_id):
@@ -186,7 +160,6 @@ def update_task(task_id):
 
     return jsonify({'status': 'success'})
 
-
 @app.route('/tasks/reorder', methods=['POST'])
 def reorder_tasks():
     data = request.json
@@ -207,18 +180,12 @@ def reorder_tasks():
         conn.rollback()
         return jsonify({'error': str(e)}), 500
 
-
-
 # -----------------------------------------------------------------------------
 # SUBTASKS ROUTES
 # -----------------------------------------------------------------------------
 
 @app.route('/tasks/<int:task_id>/subtasks', methods=['POST'])
 def create_subtask(task_id):
-    """
-    Create a subtask for a given parent task (task_id).
-    Returns 400 if subtask text is empty.
-    """
     data = request.json
     subtask_text = (data.get('subtask') or '').strip()
     if not subtask_text:
@@ -234,13 +201,8 @@ def create_subtask(task_id):
 
     return jsonify({'status': 'success'}), 201
 
-
 @app.route('/tasks/<int:task_id>/subtasks', methods=['GET'])
 def get_subtasks(task_id):
-    """
-    Get all subtasks for a given parent task_id.
-    Returns a JSON list of subtasks.
-    """
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM subtasks WHERE parent_task_id = ?', (task_id,))
@@ -254,13 +216,8 @@ def get_subtasks(task_id):
     ) for row in rows]
     return jsonify(subtasks)
 
-
 @app.route('/tasks/<int:task_id>/subtasks/<int:subtask_id>/complete', methods=['PATCH'])
 def toggle_subtask_completion(task_id, subtask_id):
-    """
-    Toggle the 'completed' status of a subtask.
-    Expects JSON body with {"completed": true/false}.
-    """
     data = request.json
     completed = data.get('completed', False)
 
@@ -275,12 +232,8 @@ def toggle_subtask_completion(task_id, subtask_id):
 
     return jsonify({'status': 'success'})
 
-
 @app.route('/tasks/<int:task_id>/subtasks/<int:subtask_id>', methods=['DELETE'])
 def delete_subtask(task_id, subtask_id):
-    """
-    Delete a single subtask by ID for the given parent task.
-    """
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
@@ -291,16 +244,12 @@ def delete_subtask(task_id, subtask_id):
 
     return jsonify({'status': 'success'})
 
-
 # -----------------------------------------------------------------------------
 # AI ROUTES
 # -----------------------------------------------------------------------------
 
 @app.route('/ai/suggest', methods=['POST'])
 def ai_suggest():
-    """
-    Generate 3 sub-task suggestions in bullet points for a given main task description.
-    """
     data = request.json
     task_text = data.get('task', '')
 
@@ -325,18 +274,8 @@ def ai_suggest():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/ai/autogen', methods=['POST'])
 def ai_autogen():
-    """
-    Generate structured JSON containing:
-      {
-        "main_task": "...",
-        "subtasks": [...]
-      }
-    for a given user prompt. 
-    Returns an error if the prompt is empty or JSON decoding fails.
-    """
     data = request.json
     user_prompt = (data.get('prompt') or '').strip()
     if not user_prompt:
@@ -345,7 +284,6 @@ def ai_autogen():
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
 
-        # System prompt encouraging GPT to return structured JSON
         messages = [
             {
                 "role": "system",
@@ -359,14 +297,10 @@ You are a helpful assistant that MUST always return valid JSON with the structur
 
 Behavior:
 1. If the user says “items needed” or “ingredients for” or "list of items needed", 
-   you MUST guess typical items if not explicitly listed. For example, 
-   an oil change typically requires engine oil, funnel, drain pan, etc.
-
+   you MUST guess typical items if not explicitly listed.
 2. If the user only provides a single action with no mention of items, 
    subtasks is an empty array.
-
 3. Remove filler phrases like "i want" or "list of items needed" from main_task.
-
 4. Return ONLY JSON, no commentary.
 """
             },
@@ -381,7 +315,6 @@ Behavior:
 
         ai_content = response.choices[0].message.content
 
-        # Attempt to parse the AI response as JSON
         try:
             parsed = json.loads(ai_content)
         except json.JSONDecodeError:
@@ -395,6 +328,13 @@ Behavior:
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/sw.js')
+def serve_service_worker():
+    return send_from_directory('static', 'sw.js')
+
+@app.route('/manifest.json')
+def serve_manifest():
+    return send_from_directory('static', 'manifest.json')
 
 # -----------------------------------------------------------------------------
 # MAIN

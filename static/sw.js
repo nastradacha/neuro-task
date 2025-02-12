@@ -1,53 +1,48 @@
+// sw.js
 const CACHE_NAME = 'neurotask-offline-v1';
-const OFFLINE_URL = '/offline.html'; // Optional fallback
-const STATIC_ASSETS = [
-  '/',
-  '/static/output.css',
-  '/static/main.css',
-  '/static/icons/*',
-  '/templates/index.html',
-  '/static/notification-icon.png'
-];
+const OFFLINE_URL = '/offline.html'; // (optional fallback)
 
 // Install Phase: Pre-cache critical assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
+        // Cache only valid, accessible URLs.
         return cache.addAll([
           '/',
-          '/static/output.css',
-          '/templates/index.html'
+          '/static/output.css'
+          // Add other valid assets here.
+          // e.g., '/static/notification-icon.png'
         ]);
       })
       .then(() => self.skipWaiting())
   );
 });
 
-// Fetch Event: Network-first with cache fallback
-self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') return;
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then(keys => {
+      return Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+    }).then(() => self.clients.claim())
+  );
+});
 
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Cache successful responses
-        const clone = response.clone();
-        caches.open(CACHE_NAME)
-          .then(cache => cache.put(event.request, clone));
-        return response;
+        return caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, response.clone());
+          return response;
+        });
       })
-      .catch(() => {
-        // Fallback 1: Return cached version
-        return caches.match(event.request)
-          .then(cached => {
-            // Fallback 2: Show offline page
-            if (!cached && event.request.mode === 'navigate') {
-              return caches.match(OFFLINE_URL);
-            }
-            return cached;
-          });
-      })
+      .catch(() => caches.match(event.request))
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
+  }
 });
