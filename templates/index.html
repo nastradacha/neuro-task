@@ -492,8 +492,8 @@
                 }
               }
             }
+            // After processing, force a refresh from the server and update offline status.
             await this.refreshTasksWithSubtasks();
-            // Force update the offline pending status after a delay.
             setTimeout(() => {
               this.updateOfflinePendingStatus();
               console.log('[Client] Updated offline pending status after delay.');
@@ -534,26 +534,36 @@
               this.updateOfflinePendingStatus();
             }
           });
+
+          
+
+
           try {
             const [serverTasks, pendingEdits] = await Promise.all([
               this.fetchTasks(),
-              this.checkPendingEdits = this.checkPendingOfflineEdits()
+              this.checkPendingOfflineEdits()
             ]);
-            const mergedMap = new Map();
-            serverTasks.forEach(task => mergedMap.set(task.id, task));
-            pendingEdits
-              .filter(e => e.type === 'create')
-              .map(e => e.payload)
-              .forEach(pending => {
-                const duplicate = Array.from(mergedMap.values()).find(serverTask =>
-                  serverTask.task === pending.task &&
-                  new Date(serverTask.due_date).getTime() === new Date(pending.due_date).getTime() &&
-                  serverTask.priority === pending.priority &&
-                  serverTask.category === pending.category
-                );
-                if (!duplicate) mergedMap.set(pending.id, pending);
-              });
-            this.tasks = Array.from(mergedMap.values());
+            // When online, use only server tasks.
+            if (navigator.onLine) {
+              this.tasks = serverTasks;
+            } else {
+              // Offline: merge pending tasks with server tasks.
+              const mergedMap = new Map();
+              serverTasks.forEach(task => mergedMap.set(task.id, task));
+              pendingEdits
+                .filter(e => e.type === 'create')
+                .map(e => e.payload)
+                .forEach(pending => {
+                  const duplicate = Array.from(mergedMap.values()).find(serverTask =>
+                    serverTask.task === pending.task &&
+                    new Date(serverTask.due_date).getTime() === new Date(pending.due_date).getTime() &&
+                    serverTask.priority === pending.priority &&
+                    serverTask.category === pending.category
+                  );
+                  if (!duplicate) mergedMap.set(pending.id, pending);
+                });
+              this.tasks = Array.from(mergedMap.values());
+            }
             this.tasks.forEach(task => {
               if (!this.editingBuffer[task.id]) {
                 this.editingBuffer[task.id] = {
@@ -785,9 +795,11 @@
             });
             if (!response.ok) throw new Error('Server rejected the task');
             const serverTask = await response.json();
+            // Replace the optimistic task with the server task.
             this.tasks = this.tasks.map(t => 
               t.id === tempId ? { ...serverTask, isPending: false } : t
             );
+            // Remove any tasks with temporary IDs.
             this.tasks = this.tasks.filter(task => !String(task.id).startsWith('temp-'));
             await this.refreshTasksWithSubtasks();
           } catch (error) {
@@ -877,6 +889,7 @@
             console.error('Delete subtask error:', err);
           }
         },
+        // When online, refresh using only server tasks.
         async refreshTasksWithSubtasks(force = false) {
           try {
             const url = force ? `/tasks?rand=${Math.random()}` : '/tasks';
@@ -884,19 +897,10 @@
             if (!resp.ok) throw new Error('Failed to fetch tasks');
             const serverTasks = await resp.json();
             if (navigator.onLine) {
-              let deduped = [];
-              serverTasks.forEach(task => {
-                if (!deduped.some(t =>
-                  t.task === task.task &&
-                  new Date(t.due_date).getTime() === new Date(task.due_date).getTime() &&
-                  t.priority === task.priority &&
-                  t.category === task.category
-                )) {
-                  deduped.push(task);
-                }
-              });
-              this.tasks = deduped;
+              // Online: use only the server tasks (ignoring pending tasks).
+              this.tasks = serverTasks;
             } else {
+              // Offline: merge pending tasks with server tasks.
               const pendingTasks = this.tasks.filter(t => t.isPending);
               const mergedMap = new Map();
               serverTasks.forEach(task => mergedMap.set(task.id, task));
@@ -914,6 +918,7 @@
               this.tasks = Array.from(mergedMap.values());
             }
             
+            // Initialize editing buffers and collapsed states.
             this.tasks.forEach(task => {
               if (!this.editingBuffer[task.id]) {
                 this.editingBuffer[task.id] = {
@@ -1156,6 +1161,28 @@
       deferredPrompt = null;
     });
   </script>
+
+  <script>
+    // Listen for messages from the service worker
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data.type === 'sync-complete') {
+        fetch('/tasks')
+          .then(response => response.json())
+          .then(tasks => {
+            // Clear existing tasks and re-render the updated list
+            const taskList = document.getElementById('task-list');
+            taskList.innerHTML = ''; // Clear the list
+            tasks.forEach(task => {
+              const taskElement = document.createElement('div');
+              taskElement.textContent = task.task;
+              taskList.appendChild(taskElement);
+            });
+          })
+          .catch(err => console.error('Error fetching tasks:', err));
+      }
+    });
+  </script>
   
 </body>
 </html>
+

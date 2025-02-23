@@ -172,14 +172,29 @@ async function processSyncQueue() {
       request.onsuccess = () => resolve(request.result || []);
       request.onerror = () => reject(request.error);
     });
+
     for (const edit of offlineEdits) {
       try {
+        // Check if the task already exists in the backend
+        const taskId = edit.payload.id; // Assuming each task has a unique ID
+        const checkResponse = await fetch(`/tasks/${taskId}`, { method: 'GET' });
+
+        if (checkResponse.ok) {
+          // Task already exists, skip syncing and remove from queue
+          const txDel = db.transaction('offlineEdits', 'readwrite');
+          txDel.objectStore('offlineEdits').delete(edit.id);
+          await txComplete(txDel);
+          continue;
+        }
+
+        // Proceed with syncing the task
         const req = new Request(edit.url, {
           method: edit.method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(edit.payload)
         });
         const response = await fetch(req);
+
         if (response.ok) {
           const txDel = db.transaction('offlineEdits', 'readwrite');
           txDel.objectStore('offlineEdits').delete(edit.id);
@@ -223,6 +238,29 @@ async function updateClientTasks() {
     client.postMessage({
       type: 'sync-complete',
       msg: 'Refresh your tasks list'
+    });
+  });
+}
+
+// ------------------------------
+// Network Status Change Handling
+// ------------------------------
+self.addEventListener('online', () => {
+  console.log('[ServiceWorker] Device is back online');
+  updateClientNetworkStatus(true);
+});
+
+self.addEventListener('offline', () => {
+  console.log('[ServiceWorker] Device is offline');
+  updateClientNetworkStatus(false);
+});
+
+async function updateClientNetworkStatus(isOnline) {
+  const clientsList = await self.clients.matchAll({ type: 'window' });
+  clientsList.forEach(client => {
+    client.postMessage({
+      type: 'network-status',
+      isOnline: isOnline
     });
   });
 }
