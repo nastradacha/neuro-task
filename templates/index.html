@@ -22,7 +22,6 @@
     [x-cloak] { display: none !important; }
     .ai-loader { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-    
     /* Install App Button Styling */
     #install-app-button {
       position: fixed;
@@ -37,7 +36,6 @@
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
       z-index: 1000;
     }
-    
     /* Offline Pending Banner */
     #offline-banner {
       position: fixed;
@@ -49,14 +47,12 @@
       text-align: center;
       z-index: 1000;
     }
-    
     /* Drag Handle styling */
     .drag-handle {
       cursor: grab;
       touch-action: none;
       -ms-touch-action: none;
     }
-    
     /* AI Auto-Add Modal styling */
     .modal-overlay {
       position: fixed;
@@ -77,6 +73,17 @@
     .dark .modal-content {
       background: #1f2937;
       color: #e5e7eb;
+    }
+    /* Filter & Sort Section */
+    .filter-sort {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .filter-sort > * {
+      flex: 1;
+      min-width: 150px;
     }
   </style>
   
@@ -104,8 +111,50 @@
     
     <!-- Install App Button -->
     <button id="install-app-button" style="display: none;">Install App</button>
+
+    <!-- Sync Status -->
+    <div id="sync-status" class="fixed bottom-2 left-2 flex items-center gap-2 text-sm bg-white dark:bg-gray-800 p-2 rounded-lg shadow">
+      <template x-if="offlinePending">
+        <div class="flex items-center gap-2 text-yellow-600">
+          <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+          </svg>
+          <span>Syncing changes...</span>
+        </div>
+      </template>
+      <template x-if="!offlinePending">
+        <div class="flex items-center gap-2 text-green-600">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+          </svg>
+          <span>All changes synced</span>
+        </div>
+      </template>
+    </div>
+
+    <!-- Filter & Sort Section -->
+    <div class="filter-sort mb-4">
+      <input type="text" x-model="searchQuery" placeholder="Search tasks..."
+             class="p-2 border rounded-md dark:bg-gray-900 dark:text-white" />
+      <select x-model="filterPriority" class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
+        <option value="">All Priorities</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+      <input type="text" x-model="filterCategory" placeholder="Filter by Category..."
+             class="p-2 border rounded-md dark:bg-gray-900 dark:text-white" />
+      <select x-model="sortOption" class="p-2 border rounded-md dark:bg-gray-900 dark:text-white">
+        <option value="dueAsc">Due Date (Asc)</option>
+        <option value="dueDesc">Due Date (Desc)</option>
+        <option value="priorityDesc">Priority (High → Low)</option>
+        <option value="priorityAsc">Priority (Low → High)</option>
+        <option value="default">Default Order</option>
+      </select>
+    </div>
     
-    <!-- Offline Pending Banner -->
+    <!-- Offline Banner -->
     <div id="offline-banner" x-show="offlinePending" x-cloak>
       ⚠️ Offline edits pending sync.
     </div>
@@ -179,8 +228,12 @@
           </ul>
         </div>
         <div class="flex justify-end gap-4">
-          <button @click="editAutoAdd()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">Edit in Form</button>
-          <button @click="addAutoAdd()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Immediately</button>
+          <button @click="editAutoAdd()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
+            Edit in Form
+          </button>
+          <button @click="addAutoAdd()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+            Add Immediately
+          </button>
         </div>
       </div>
     </div>
@@ -202,8 +255,8 @@
                 <span x-show="!editingStates[task.id]?.text" @click="enableTextEdit(task)"
                       x-text="task.task" class="text-gray-800 dark:text-gray-200 cursor-pointer"
                       :class="task.completed ? 'line-through text-gray-500' : ''"></span>
-                <input x-show="editingStates[task.id] && editingStates[task.id].text"
-                       x-model="editingBuffer[task.id].text"
+                <input x-show="editingStates[task.id]"
+                       x-model="getBuffer(task.id).text"
                        @blur="saveTextEdit(task)"
                        class="border border-gray-300 rounded p-1 w-full dark:bg-gray-900 dark:text-white"
                        type="text" x-cloak>
@@ -213,8 +266,8 @@
             <div class="flex flex-wrap items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-2">
               <span x-show="!editingStates[task.id]?.date" @click="enableDateEdit(task)"
                     x-text="new Date(task.due_date).toLocaleString()" class="cursor-pointer mr-2"></span>
-              <input x-show="editingStates[task.id] && editingStates[task.id].date"
-                     x-model="editingBuffer[task.id].date" type="datetime-local"
+              <input x-show="editingStates[task.id]"
+                     x-model="getBuffer(task.id).date" type="datetime-local"
                      @blur="saveDateEdit(task)" class="border border-gray-300 rounded p-1 dark:bg-gray-900 dark:text-white" x-cloak>
               <div class="flex items-center gap-2 mt-2 md:mt-0">
                 <span class="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer">
@@ -222,7 +275,7 @@
                         x-text="task.priority.charAt(0).toUpperCase() + task.priority.slice(1)"></span>
                   <template x-if="editingStates[task.id]?.priority">
                     <label :for="'priorityEdit' + task.id" class="sr-only">Edit priority</label>
-                    <select :id="'priorityEdit' + task.id" x-model="editingBuffer[task.id]?.priority"
+                    <select :id="'priorityEdit' + task.id" x-model="getBuffer(task.id).priority"
                             @blur="savePriorityEdit(task)" class="text-xs border border-gray-300 rounded dark:bg-gray-900 dark:text-white">
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
@@ -239,13 +292,13 @@
                       @click="enableCategoryEdit(task)" class="text-xs italic text-gray-400 cursor-pointer">
                   + Add Category
                 </span>
-                <input x-show="editingStates[task.id] && editingStates[task.id].category"
-                       x-model="editingBuffer[task.id].category" @blur="saveCategoryEdit(task)"
+                <input x-show="editingStates[task.id]"
+                       x-model="getBuffer(task.id).category" @blur="saveCategoryEdit(task)"
                        class="border border-gray-300 rounded p-1 text-xs dark:bg-gray-900 dark:text-white"
                        type="text" placeholder="Category" x-cloak>
               </div>
             </div>
-            <!-- Progress and Toggle Subtasks -->
+            <!-- Progress & Toggle Subtasks -->
             <div class="flex items-center justify-between mb-2">
               <div class="flex flex-col w-full pr-2">
                 <div class="text-xs mb-1">
@@ -320,35 +373,128 @@
         isOffline: false,
         offlinePending: false,
         
+        // Toggle dark mode
+        toggleDarkMode() {
+          this.darkMode = !this.darkMode;
+          localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+        },
+        
         // Toggle subtask visibility
         toggleSubtasks(taskId) {
           this.collapsedTasks[taskId] = !this.collapsedTasks[taskId];
         },
         
+        // Helper to ensure editingBuffer exists
+        getBuffer(taskId) {
+          if (!this.editingBuffer[taskId]) {
+            this.editingBuffer[taskId] = { text: '', date: '', priority: '', category: '' };
+          }
+          return this.editingBuffer[taskId];
+        },
+        
         // IndexedDB Helpers for Offline Edits
         openOfflineEditsDB() {
           return new Promise((resolve, reject) => {
-            const request = indexedDB.open('neurotask-db', 1);
-            request.onupgradeneeded = event => {
+            const request = indexedDB.open('neurotask-offline', 2);
+            request.onupgradeneeded = (event) => {
               const db = event.target.result;
               if (!db.objectStoreNames.contains('offlineEdits')) {
-                db.createObjectStore('offlineEdits', { keyPath: 'id', autoIncrement: true });
+                const store = db.createObjectStore('offlineEdits', { keyPath: 'id', autoIncrement: true });
+                store.createIndex('type', 'type', { unique: false });
               }
             };
-            request.onsuccess = event => resolve(event.target.result);
-            request.onerror = event => reject(event.target.error);
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject(event.target.error);
           });
         },
-        addOfflineEdit(edit) {
-          return this.openOfflineEditsDB().then(db => {
-            return new Promise((resolve, reject) => {
-              const transaction = db.transaction('offlineEdits', 'readwrite');
-              const store = transaction.objectStore('offlineEdits');
-              const request = store.add(edit);
-              request.onsuccess = () => resolve();
-              request.onerror = e => reject(e.target.error);
+        async addOfflineEdit(edit) {
+          // Strip out client-only properties.
+          const payload = {
+            task: edit.task,
+            due_date: edit.due_date,
+            priority: edit.priority,
+            category: edit.category
+          };
+          const db = await this.openOfflineEditsDB();
+          return new Promise((resolve, reject) => {
+            const tx = db.transaction('offlineEdits', 'readwrite');
+            const store = tx.objectStore('offlineEdits');
+            const request = store.add({
+              type: 'create',
+              url: '/tasks',
+              method: 'POST',
+              payload: payload,
+              tempId: edit.tempId,
+              retries: 0
             });
+            request.onsuccess = () => {
+              this.offlinePending = true;
+              resolve();
+            };
+            request.onerror = (e) => reject(e.target.error);
           });
+        },
+        async processPendingEdits() {
+          try {
+            const db = await this.openOfflineEditsDB();
+            const edits = await new Promise((resolve, reject) => {
+              const tx = db.transaction('offlineEdits', 'readonly');
+              const store = tx.objectStore('offlineEdits');
+              const request = store.getAll();
+              request.onsuccess = () => resolve(request.result || []);
+              request.onerror = () => reject(request.error);
+            });
+            console.log('[Client] Pending edits:', edits);
+            
+            // Process each edit
+            for (const edit of edits) {
+              try {
+                const req = new Request(edit.url, {
+                  method: edit.method,
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(edit.payload)
+                });
+                const response = await fetch(req);
+                if (response.ok) {
+                  await new Promise((resolve, reject) => {
+                    const tx = db.transaction('offlineEdits', 'readwrite');
+                    tx.objectStore('offlineEdits').delete(edit.id);
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error);
+                  });
+                } else {
+                  if (edit.retries < 3) {
+                    const txUpdate = db.transaction('offlineEdits', 'readwrite');
+                    const storeUpdate = txUpdate.objectStore('offlineEdits');
+                    edit.retries++;
+                    storeUpdate.put(edit);
+                    await txComplete(txUpdate);
+                  } else {
+                    const txDel = db.transaction('offlineEdits', 'readwrite');
+                    txDel.objectStore('offlineEdits').delete(edit.id);
+                    await txComplete(txDel);
+                  }
+                }
+              } catch (error) {
+                if (edit.retries < 3) {
+                  const txUpdate = db.transaction('offlineEdits', 'readwrite');
+                  const storeUpdate = txUpdate.objectStore('offlineEdits');
+                  edit.retries++;
+                  storeUpdate.put(edit);
+                  await txComplete(txUpdate);
+                } else {
+                  const txDel = db.transaction('offlineEdits', 'readwrite');
+                  txDel.objectStore('offlineEdits').delete(edit.id);
+                  await txComplete(txDel);
+                }
+              }
+            }
+            await this.refreshTasksWithSubtasks();
+            this.updateOfflinePendingStatus();
+          } catch (error) {
+            console.error('[Client] Error processing pending edits:', error);
+          }
         },
         checkPendingOfflineEdits() {
           return this.openOfflineEditsDB().then(db => {
@@ -371,33 +517,62 @@
         async init() {
           const storedTheme = localStorage.getItem('theme');
           this.darkMode = (storedTheme === 'dark');
-          try {
-            this.tasks = await this.fetchTasks();
-          } catch (err) {
-            console.error("Error fetching tasks:", err);
-          }
-          this.tasks.forEach(task => {
-            if (!(task.id in this.editingBuffer)) {
-              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
-            }
-            if (!(task.id in this.collapsedTasks)) {
-              this.collapsedTasks[task.id] = false;
+          this.tasks = [];
+          this.subtasks = {};
+          this.editingStates = {};
+          this.editingBuffer = {};
+          this.collapsedTasks = {};
+          navigator.serviceWorker?.addEventListener('message', event => {
+            if (event.data.type === 'sync-complete') {
+              this.refreshTasksWithSubtasks(true);
+              this.updateOfflinePendingStatus();
             }
           });
-          for (let t of this.tasks) {
-            try {
-              this.subtasks[t.id] = await this.fetchSubtasks(t.id);
-            } catch (err) {
-              console.error("Error fetching subtasks for task", t.id, err);
-            }
+          try {
+            const [serverTasks, pendingEdits] = await Promise.all([
+              this.fetchTasks(),
+              this.checkPendingOfflineEdits()
+            ]);
+            const mergedMap = new Map();
+            serverTasks.forEach(task => mergedMap.set(task.id, task));
+            pendingEdits
+              .filter(e => e.type === 'create')
+              .map(e => e.payload)
+              .forEach(pending => {
+                const duplicate = Array.from(mergedMap.values()).find(serverTask =>
+                  serverTask.task === pending.task &&
+                  new Date(serverTask.due_date).getTime() === new Date(pending.due_date).getTime() &&
+                  serverTask.priority === pending.priority &&
+                  serverTask.category === pending.category
+                );
+                if (!duplicate) mergedMap.set(pending.id, pending);
+              });
+            this.tasks = Array.from(mergedMap.values());
+            this.tasks.forEach(task => {
+              if (!this.editingBuffer[task.id]) {
+                this.editingBuffer[task.id] = {
+                  text: task.task || '',
+                  date: task.due_date || '',
+                  priority: task.priority || '',
+                  category: task.category || ''
+                };
+              }
+              if (this.collapsedTasks[task.id] === undefined) {
+                this.collapsedTasks[task.id] = false;
+              }
+            });
+            await Promise.all(this.tasks.map(async task => {
+              if (task.isPending) return;
+              this.subtasks[task.id] = await this.fetchSubtasks(task.id);
+            }));
+          } catch (error) {
+            console.error('Initialization error:', error);
           }
           this.initNotifications();
           this.initDragAndDrop();
-          this.checkConnectionStatus();
-          window.addEventListener('online', () => {
-            this.isOffline = false;
-            this.updateOfflinePendingStatus();
-            this.refreshTasksWithSubtasks();
+          window.addEventListener('online', async () => {
+            await this.processPendingEdits();
+            this.refreshTasksWithSubtasks(true);
           });
           window.addEventListener('offline', () => {
             this.isOffline = true;
@@ -405,8 +580,34 @@
           });
           this.updateOfflinePendingStatus();
         },
+
+        async handleTaskSynced(tempId, serverId) {
+          const index = this.tasks.findIndex(t => t.id === tempId);
+          if (index === -1) return;
+          try {
+            const response = await fetch(`/tasks/${serverId}`);
+            if (!response.ok) throw new Error('Failed to fetch synced task');
+            const serverTask = await response.json();
+            this.tasks.splice(index, 1, { ...serverTask, isPending: false });
+            this.subtasks[serverId] = await this.fetchSubtasks(serverId);
+          } catch (error) {
+            console.error('Failed to update synced task:', error);
+            this.tasks.splice(index, 1);
+          }
+        },
+
+        setupConnectionWatchers() {
+          window.addEventListener('online', async () => {
+            await this.processPendingEdits();
+            this.refreshTasksWithSubtasks(true);
+          });
+          window.addEventListener('offline', () => {
+            this.isOffline = true;
+            this.updateOfflinePendingStatus();
+          });
+          this.checkConnectionStatus();
+        },
         
-        // initDragAndDrop() with onClone callback to remove Alpine bindings from fallback clone
         initDragAndDrop() {
           const el = document.getElementById('task-list');
           if (!el) return;
@@ -419,7 +620,6 @@
             fallbackTolerance: 10,
             onClone: function(evt) {
               const clone = evt.clone;
-              // Remove attributes starting with "x-" from the clone and its descendants.
               [...clone.attributes].forEach(attr => {
                 if (attr.name.startsWith('x-')) {
                   clone.removeAttribute(attr.name);
@@ -437,7 +637,6 @@
           });
         },
         
-        // Editing helpers
         initEdit(taskId, field, value) {
           if (!this.editingStates[taskId]) {
             this.editingStates[taskId] = {};
@@ -487,7 +686,6 @@
           this.saveEdit(task, "category", "category");
         },
         
-        // Drag-and-drop handler
         async handleDragEnd(evt) {
           const reorderedTasks = JSON.parse(JSON.stringify(this.tasks));
           const [movedItem] = reorderedTasks.splice(evt.oldIndex, 1);
@@ -516,60 +714,93 @@
           return { total, completed, percent };
         },
         
-        // Task CRUD methods
         async addTask() {
           if (!this.newTask.trim()) {
             alert('Please enter a task or AI prompt!');
             return;
           }
-          const payload = {
-            task: this.newTask,
+          const duplicateCheck = this.tasks.some(t => 
+            t.task === this.newTask.trim() &&
+            t.due_date === (this.newDueDate || new Date().toISOString()) &&
+            t.priority === this.newPriority
+          );
+          if (duplicateCheck) {
+            alert('This task already exists in your list!');
+            return;
+          }
+          const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+          const newTask = {
+            id: tempId,
+            task: this.newTask.trim(),
             due_date: this.newDueDate || new Date().toISOString(),
             priority: this.newPriority,
             category: this.newCategory,
-            sort_order: this.tasks.length
+            completed: false,
+            isPending: true,
+            sort_order: this.tasks.length,
+            tempId: tempId,
+            queued: false
           };
+          // Optimistically add the offline task to UI.
+          this.tasks = [newTask, ...this.tasks];
+          this.newTask = '';
+          this.newDueDate = '';
+          this.newPriority = 'medium';
+          this.newCategory = '';
+          // If offline, queue it only once.
           if (!navigator.onLine) {
-            try {
-              await this.addOfflineEdit({
-                url: '/tasks',
-                method: 'POST',
-                payload: { ...payload, type: 'create' }
-              });
-              if ('serviceWorker' in navigator && 'SyncManager' in window) {
-                navigator.serviceWorker.ready.then(reg => reg.sync.register('sync-offline-edits'))
-                  .catch(err => console.error('Sync registration failed:', err));
+            if (!newTask.queued) {
+              newTask.queued = true;
+              try {
+                await this.addOfflineEdit(newTask);
+                if ('serviceWorker' in navigator && 'SyncManager' in window) {
+                  const reg = await navigator.serviceWorker.ready;
+                  await reg.sync.register('sync-offline-edits');
+                }
+                this.offlinePending = true;
+              } catch (error) {
+                console.error('Offline save failed:', error);
+                this.tasks = this.tasks.filter(t => t.id !== tempId);
+                alert(`Failed to save offline: ${error.message}`);
               }
-              alert('Task saved offline. It will sync when you are back online.');
-              this.newTask = '';
-              this.newDueDate = '';
-              this.newPriority = 'medium';
-              this.newCategory = '';
-              this.offlinePending = true;
-              return;
-            } catch (err) {
-              console.error('Error saving offline task:', err);
-              alert('Failed to save task offline.');
-              return;
             }
+            return;
           }
+          // When online, construct a clean payload without client-only fields.
+          const payload = {
+            task: newTask.task,
+            due_date: newTask.due_date,
+            priority: newTask.priority,
+            category: newTask.category
+          };
           try {
-            const resp = await fetch('/tasks', {
+            const response = await fetch('/tasks', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
-            if (!resp.ok) throw new Error('Failed to add task');
-            this.newTask = '';
-            this.newDueDate = '';
-            this.newPriority = 'medium';
-            this.newCategory = '';
+            if (!response.ok) throw new Error('Server rejected the task');
+            const serverTask = await response.json();
+            // Replace the optimistic task with the server task.
+            this.tasks = this.tasks.map(t => 
+              t.id === tempId ? { ...serverTask, isPending: false } : t
+            );
+            // Remove any tasks with temporary IDs.
+            this.tasks = this.tasks.filter(task => !String(task.id).startsWith('temp-'));
             await this.refreshTasksWithSubtasks();
-          } catch (err) {
-            console.error('Add Task error:', err);
-            alert('Add Task error: ' + err.message);
+          } catch (error) {
+            console.error('Task creation failed:', error);
+            this.tasks = this.tasks.filter(t => t.id !== tempId);
+            if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+              await this.addOfflineEdit(newTask);
+              this.offlinePending = true;
+              alert('Network error - task queued for retry');
+            } else {
+              alert(`Task creation failed: ${error.message}`);
+            }
+          } finally {
+            this.updateOfflinePendingStatus();
           }
-          this.updateOfflinePendingStatus();
         },
         async deleteTask(taskId) {
           try {
@@ -644,23 +875,72 @@
             console.error('Delete subtask error:', err);
           }
         },
-        async refreshTasksWithSubtasks() {
-          const preservedCollapsed = { ...this.collapsedTasks };
-          this.tasks = await this.fetchTasks();
-          this.tasks.forEach(task => {
-            if (!(task.id in preservedCollapsed)) {
-              preservedCollapsed[task.id] = false;
+        // Refresh: if online, use only server tasks; if offline, merge pending.
+        async refreshTasksWithSubtasks(force = false) {
+          try {
+            const url = force ? `/tasks?rand=${Math.random()}` : '/tasks';
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('Failed to fetch tasks');
+            const serverTasks = await resp.json();
+            if (navigator.onLine) {
+              // Online: deduplicate server tasks.
+              let deduped = [];
+              serverTasks.forEach(task => {
+                if (!deduped.some(t =>
+                  t.task === task.task &&
+                  new Date(t.due_date).getTime() === new Date(task.due_date).getTime() &&
+                  t.priority === task.priority &&
+                  t.category === task.category
+                )) {
+                  deduped.push(task);
+                }
+              });
+              this.tasks = deduped;
+            } else {
+              const pendingTasks = this.tasks.filter(t => t.isPending);
+              const mergedMap = new Map();
+              serverTasks.forEach(task => mergedMap.set(task.id, task));
+              pendingTasks.forEach(pending => {
+                const duplicate = Array.from(mergedMap.values()).find(serverTask =>
+                  serverTask.task === pending.task &&
+                  new Date(serverTask.due_date).getTime() === new Date(pending.due_date).getTime() &&
+                  serverTask.priority === pending.priority &&
+                  serverTask.category === pending.category
+                );
+                if (!duplicate) {
+                  mergedMap.set(pending.id, pending);
+                }
+              });
+              this.tasks = Array.from(mergedMap.values());
             }
-            if (!(task.id in this.editingBuffer)) {
-              this.editingBuffer[task.id] = { text: '', date: '', priority: '', category: '' };
+            
+            this.tasks.forEach(task => {
+              if (!this.editingBuffer[task.id]) {
+                this.editingBuffer[task.id] = {
+                  text: task.task || '',
+                  date: task.due_date || '',
+                  priority: task.priority || '',
+                  category: task.category || ''
+                };
+              }
+              if (this.collapsedTasks[task.id] === undefined) {
+                this.collapsedTasks[task.id] = false;
+              }
+            });
+            
+            const newSubtasks = {};
+            await Promise.all(this.tasks.map(async task => {
+              if (task.isPending) return;
+              const subResp = await fetch(`/tasks/${task.id}/subtasks`);
+              newSubtasks[task.id] = subResp.ok ? await subResp.json() : [];
+            }));
+            this.subtasks = newSubtasks;
+          } catch (err) {
+            console.error("Refresh error:", err);
+            if (!navigator.onLine) {
+              console.log("Offline mode - using cached tasks");
             }
-          });
-          const newSubtasks = {};
-          await Promise.all(this.tasks.map(async task => {
-            newSubtasks[task.id] = await this.fetchSubtasks(task.id);
-          }));
-          this.subtasks = newSubtasks;
-          this.collapsedTasks = preservedCollapsed;
+          }
         },
         async aiAutoAdd() {
           if (!this.newTask.trim()) {
@@ -693,16 +973,16 @@
         },
         async addAutoAdd() {
           try {
+            const payload = {
+              task: this.aiAutoAddResult.main_task,
+              due_date: this.newDueDate || new Date().toISOString(),
+              priority: this.newPriority,
+              category: this.newCategory
+            };
             const createResp = await fetch('/tasks', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                task: this.aiAutoAddResult.main_task,
-                due_date: this.newDueDate || new Date().toISOString(),
-                priority: this.newPriority,
-                category: this.newCategory,
-                sort_order: this.tasks.length
-              })
+              body: JSON.stringify(payload)
             });
             if (!createResp.ok) throw new Error('Failed to create main task');
             await this.refreshTasksWithSubtasks();
@@ -751,7 +1031,7 @@
             filtered.sort((a, b) => this.priorityValue(b.priority) - this.priorityValue(a.priority));
           } else if (this.sortOption === 'priorityAsc') {
             filtered.sort((a, b) => this.priorityValue(a.priority) - this.priorityValue(b.priority));
-          } else {
+          } else if (this.sortOption === 'default') {
             filtered.sort((a, b) => a.sort_order - b.sort_order);
           }
           return filtered;
@@ -775,8 +1055,15 @@
           }
         },
         async checkDueTasks() {
+          if (!navigator.onLine) {
+            console.warn('checkDueTasks: offline, skipping fetch');
+            return;
+          }
           try {
             const resp = await fetch('/tasks/due_soon');
+            if (!resp.ok) {
+              throw new Error(`HTTP error! status: ${resp.status}`);
+            }
             const dueTasks = await resp.json();
             dueTasks.forEach(task => {
               if (!this.notifiedTasks.has(task.id)) {
@@ -841,6 +1128,14 @@
       });
     }
   </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        setInterval(() => registration.update(), 60 * 60 * 1000);
+      });
+    }
+  </script>
   
   <!-- Install Prompt Script -->
   <script>
@@ -864,10 +1159,3 @@
   
 </body>
 </html>
-
-
-
-
-
-
-

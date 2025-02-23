@@ -1,76 +1,228 @@
-// sw.js
-const CACHE_NAME = 'neurotask-offline-v1';
-const OFFLINE_URL = '/offline.html'; // (optional fallback)
+const CACHE_VERSION = 3;
+const STATIC_CACHE = `neurotask-static-v${CACHE_VERSION}`;
+const API_CACHE = `neurotask-api-v${CACHE_VERSION}`;
+const OFFLINE_URL = '/offline.html';
+const SYNC_TAG = 'sync-offline-edits';
 
-// Install Phase: Pre-cache critical assets
+// ------------------------------
+// IndexedDB helper for offline edits
+// ------------------------------
+function openSyncDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('neurotask-offline', 2);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('offlineEdits')) {
+        db.createObjectStore('offlineEdits', { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Helper: Returns a promise that resolves when the transaction completes.
+function txComplete(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function queueFailedRequest(request) {
+  try {
+    const body = await request.clone().json();
+    const db = await openSyncDB();
+    const tx = db.transaction('offlineEdits', 'readwrite');
+    const store = tx.objectStore('offlineEdits');
+    store.put({
+      url: request.url,
+      method: request.method,
+      payload: body,
+      timestamp: Date.now(),
+      retries: 0
+    });
+    console.log('[ServiceWorker] Queued failed request:', request.url);
+    return txComplete(tx);
+  } catch (err) {
+    console.error('[ServiceWorker] Error queueing failed request:', err);
+  }
+}
+
+// ------------------------------
+// Cache and offline asset helpers
+// ------------------------------
+async function fetchAndCache(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (err) {
+    const cached = await cache.match(request);
+    return cached || caches.match(OFFLINE_URL);
+  }
+}
+
+// ------------------------------
+// API request handling
+// ------------------------------
+async function handleApiRequest(request) {
+  const cache = await caches.open(API_CACHE);
+  try {
+    // Network-first strategy for API requests
+    const networkResponse = await fetch(request);
+    if (request.method === 'GET' && networkResponse.ok) {
+      await cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (err) {
+    console.warn('[ServiceWorker] Network request failed, serving from cache:', request.url);
+    if (request.method !== 'GET') {
+      await queueFailedRequest(request);
+      return new Response(JSON.stringify({ status: 'queued' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    const cached = await cache.match(request);
+    return cached || Response.error();
+  }
+}
+
+// ------------------------------
+// Install Event: Cache core assets
+// ------------------------------
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then(cache => {
-        // Cache only valid, accessible URLs.
         return cache.addAll([
           '/',
-          '/static/output.css'
-          // Add other valid assets here.
-          // e.g., '/static/notification-icon.png'
+          '/offline.html'
         ]);
+      })
+      .catch(err => {
+        console.error('[ServiceWorker] Failed to cache core assets:', err);
       })
       .then(() => self.skipWaiting())
   );
 });
 
-// Activate Phase: Clean up old caches
+// ------------------------------
+// Activate Event: Cleanup old caches
+// ------------------------------
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE)
+          .map(k => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch Phase: Intercept network requests
+// ------------------------------
+// Fetch Event: Single consolidated handler
+// ------------------------------
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-
-  // Check if the request's Accept header indicates a Server-Sent Event.
-  const acceptHeader = event.request.headers.get('Accept') || '';
-  if (acceptHeader.includes('text/event-stream')) {
-    // For SSE requests, do not intercept; let the browser handle it.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+    );
     return;
   }
-
-  // Optionally, you can also check the pathname:
-  if (url.pathname.startsWith('/stream')) {
+  if (event.request.method !== 'GET' || 
+      url.pathname.startsWith('/stream') ||
+      event.request.headers.get('Accept')?.includes('text/event-stream')) {
     return;
   }
-
-  // Only handle GET requests.
-  if (event.request.method !== 'GET') return;
-
+  if (event.request.headers.get('Content-Type')?.includes('application/json') ||
+      url.pathname.startsWith('/tasks')) {
+    event.respondWith(handleApiRequest(event.request.clone()));
+    return;
+  }
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Open the cache and store a clone of the response.
-        return caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, response.clone());
-          return response;
-        });
-      })
-      .catch(() => {
-        // If the network fetch fails, try to return a cached response.
-        return caches.match(event.request) || new Response('Offline', {
-          status: 503,
-          statusText: 'Offline'
-        });
-      })
+    caches.match(event.request)
+      .then(cached => cached || fetchAndCache(event.request, STATIC_CACHE))
   );
 });
 
-// Message event handler for skipWaiting.
-self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
+// ------------------------------
+// Background Sync: Process queued offline edits
+// ------------------------------
+self.addEventListener('sync', (event) => {
+  if (event.tag === SYNC_TAG) {
+    console.log('[ServiceWorker] Sync event fired!');
+    event.waitUntil(processSyncQueue());
   }
 });
+
+async function processSyncQueue() {
+  try {
+    const db = await openSyncDB();
+    const offlineEdits = await new Promise((resolve, reject) => {
+      const tx = db.transaction('offlineEdits', 'readonly');
+      const store = tx.objectStore('offlineEdits');
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+    for (const edit of offlineEdits) {
+      try {
+        const req = new Request(edit.url, {
+          method: edit.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(edit.payload)
+        });
+        const response = await fetch(req);
+        if (response.ok) {
+          const txDel = db.transaction('offlineEdits', 'readwrite');
+          txDel.objectStore('offlineEdits').delete(edit.id);
+          await txComplete(txDel);
+        } else {
+          if (edit.retries < 3) {
+            const txUpdate = db.transaction('offlineEdits', 'readwrite');
+            const storeUpdate = txUpdate.objectStore('offlineEdits');
+            edit.retries++;
+            storeUpdate.put(edit);
+            await txComplete(txUpdate);
+          } else {
+            const txDel = db.transaction('offlineEdits', 'readwrite');
+            txDel.objectStore('offlineEdits').delete(edit.id);
+            await txComplete(txDel);
+          }
+        }
+      } catch (error) {
+        if (edit.retries < 3) {
+          const txUpdate = db.transaction('offlineEdits', 'readwrite');
+          const storeUpdate = txUpdate.objectStore('offlineEdits');
+          edit.retries++;
+          storeUpdate.put(edit);
+          await txComplete(txUpdate);
+        } else {
+          const txDel = db.transaction('offlineEdits', 'readwrite');
+          txDel.objectStore('offlineEdits').delete(edit.id);
+          await txComplete(txDel);
+        }
+      }
+    }
+    updateClientTasks();
+  } catch (err) {
+    console.error('[ServiceWorker] Error processing sync queue:', err);
+  }
+}
+
+async function updateClientTasks() {
+  const clientsList = await self.clients.matchAll({ type: 'window' });
+  clientsList.forEach(client => {
+    client.postMessage({
+      type: 'sync-complete',
+      msg: 'Refresh your tasks list'
+    });
+  });
+}

@@ -67,6 +67,10 @@ def get_tasks():
 @app.route('/tasks', methods=['POST'])
 def create_task():
     data = request.json
+    # Remove tempId and isPending properties if present.
+    data.pop('tempId', None)
+    data.pop('isPending', None)
+    
     task_text = (data.get('task') or '').strip()
     if not task_text:
         return jsonify({'error': 'Task description is required'}), 400
@@ -77,13 +81,29 @@ def create_task():
 
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Check if a task with these properties already exists.
     cursor.execute('''
-        INSERT INTO tasks (task, due_date, priority, category)
-        VALUES (?, ?, ?, ?)
+        SELECT id FROM tasks
+        WHERE task = ? AND due_date = ? AND priority = ? AND category = ?
     ''', (task_text, due_date, priority, category))
-    conn.commit()
-
-    return jsonify({'status': 'success'}), 201
+    row = cursor.fetchone()
+    if row:
+        # If found, return the existing task.
+        return jsonify({
+            'status': 'success',
+            'id': row['id']
+        }), 200
+    else:
+        cursor.execute('''
+            INSERT INTO tasks (task, due_date, priority, category)
+            VALUES (?, ?, ?, ?)
+        ''', (task_text, due_date, priority, category))
+        conn.commit()
+        return jsonify({
+            'status': 'success',
+            'id': cursor.lastrowid
+        }), 201
 
 @app.route('/tasks/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
