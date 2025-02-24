@@ -165,70 +165,58 @@ self.addEventListener('sync', (event) => {
 async function processSyncQueue() {
   try {
     const db = await openSyncDB();
-    const offlineEdits = await new Promise((resolve, reject) => {
-      const tx = db.transaction('offlineEdits', 'readonly');
-      const store = tx.objectStore('offlineEdits');
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    });
+    const tx = db.transaction('offlineEdits', 'readonly');
+    const store = tx.objectStore('offlineEdits');
+    const offlineEdits = await store.getAll();
 
     for (const edit of offlineEdits) {
       try {
-        // Check if the task already exists in the backend
-        const taskId = edit.payload.id; // Assuming each task has a unique ID
-        const checkResponse = await fetch(`/tasks/${taskId}`, { method: 'GET' });
-
-        if (checkResponse.ok) {
-          // Task already exists, skip syncing and remove from queue
-          const txDel = db.transaction('offlineEdits', 'readwrite');
-          txDel.objectStore('offlineEdits').delete(edit.id);
-          await txComplete(txDel);
+        // Check if task already exists on the server
+        const checkRes = await fetch(edit.url, { method: 'HEAD' });
+        if (checkRes.ok) {
+          // Task exists - remove from queue without creating
+          await db.transaction('offlineEdits', 'readwrite')
+            .objectStore('offlineEdits').delete(edit.id);
           continue;
         }
 
-        // Proceed with syncing the task
+        // Create/update task
         const req = new Request(edit.url, {
           method: edit.method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(edit.payload)
         });
-        const response = await fetch(req);
-
-        if (response.ok) {
-          const txDel = db.transaction('offlineEdits', 'readwrite');
-          txDel.objectStore('offlineEdits').delete(edit.id);
-          await txComplete(txDel);
+        
+        const res = await fetch(req);
+        if (res.ok) {
+          // Sync successful - remove from queue
+          await db.transaction('offlineEdits', 'readwrite')
+            .objectStore('offlineEdits').delete(edit.id);
         } else {
-          if (edit.retries < 3) {
-            const txUpdate = db.transaction('offlineEdits', 'readwrite');
-            const storeUpdate = txUpdate.objectStore('offlineEdits');
+          // Retry logic with exponential backoff
+          if (edit.retries < 5) {
             edit.retries++;
-            storeUpdate.put(edit);
-            await txComplete(txUpdate);
+            edit.lastAttempt = Date.now();
+            await db.transaction('offlineEdits', 'readwrite')
+              .objectStore('offlineEdits').put(edit);
           } else {
-            const txDel = db.transaction('offlineEdits', 'readwrite');
-            txDel.objectStore('offlineEdits').delete(edit.id);
-            await txComplete(txDel);
+            await db.transaction('offlineEdits', 'readwrite')
+              .objectStore('offlineEdits').delete(edit.id);
           }
         }
-      } catch (error) {
-        if (edit.retries < 3) {
-          const txUpdate = db.transaction('offlineEdits', 'readwrite');
-          const storeUpdate = txUpdate.objectStore('offlineEdits');
+      } catch (err) {
+        console.error('Sync error:', err);
+        if (edit.retries < 5) {
           edit.retries++;
-          storeUpdate.put(edit);
-          await txComplete(txUpdate);
-        } else {
-          const txDel = db.transaction('offlineEdits', 'readwrite');
-          txDel.objectStore('offlineEdits').delete(edit.id);
-          await txComplete(txDel);
+          edit.lastAttempt = Date.now();
+          await db.transaction('offlineEdits', 'readwrite')
+            .objectStore('offlineEdits').put(edit);
         }
       }
     }
     updateClientTasks();
   } catch (err) {
-    console.error('[ServiceWorker] Error processing sync queue:', err);
+    console.error('Sync queue processing failed:', err);
   }
 }
 
