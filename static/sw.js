@@ -101,7 +101,14 @@ self.addEventListener('install', (event) => {
       .then(cache => {
         return cache.addAll([
           '/',
-          '/offline.html'
+          '/offline.html',
+          '/static/output.css',
+          '/static/manifest.json',
+          '/static/icons/apple-touch-icon.png',
+          '/static/favicon.ico',
+          // External dependencies - make sure Sortable.js is cached
+          'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js',
+          'https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js'
         ]);
       })
       .catch(err => {

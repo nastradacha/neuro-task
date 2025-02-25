@@ -2,7 +2,7 @@
 <html lang="en" x-data="mainApp()" x-init="init()" :class="{ 'dark': darkMode }">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NeuroTask - All Features</title>
   <link href="/static/output.css" rel="stylesheet">
   <!-- Web App Manifest -->
@@ -627,13 +627,37 @@
         initDragAndDrop() {
           const el = document.getElementById('task-list');
           if (!el) return;
-          const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+          // Better mobile detection
+          const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                          (window.innerWidth <= 768);
+          
+          console.log('Device detected as:', isMobile ? 'mobile' : 'desktop');
+
+          // Apply mobile-specific CSS classes if on mobile
+          if (isMobile) {
+            document.body.classList.add('mobile-device');
+            el.classList.add('mobile-task-list');
+          }
+  
+
           new Sortable(el, {
             animation: 150,
             handle: '.drag-handle',
-            forceFallback: isMobile,
-            fallbackOnBody: isMobile,
-            fallbackTolerance: 10,
+            delay: isMobile ? 200 : 0,       // Delay for touch devices to distinguish from scrolling
+            delayOnTouchOnly: true,          // Only delay if user is using touch
+            touchStartThreshold: 10,         // Pixel threshold before drag begins
+            forceFallback: isMobile,         // Use fallback on mobile for better control
+            fallbackOnBody: true,            // Improved mobile fallback behavior
+            fallbackTolerance: 10,           // How many pixels you need to move before drag begins
+            dragClass: 'sortable-drag',      // Class to add while dragging
+            ghostClass: 'sortable-ghost',    // Class to add to the ghost (placeholder)
+            chosenClass: 'sortable-chosen',  // Class for the chosen item
+            swapThreshold: 0.65,             // Percentage of target that must be covered before swapping
+
+
+
+
+            // Clean up Alpine.js attributes from clones
             onClone: function(evt) {
               const clone = evt.clone;
               [...clone.attributes].forEach(attr => {
@@ -649,8 +673,29 @@
                 });
               });
             },
-            onEnd: (evt) => this.handleDragEnd(evt)
+
+            // Debug events for mobile
+            onStart: function(evt) {
+              console.log('Drag started on mobile:', evt.oldIndex);
+            },
+            onEnd: (evt) => {
+            console.log('Drag ended on mobile:', evt.newIndex);
+            this.handleDragEnd(evt);
+            }
+
           });
+
+          // Add touch event debug logging
+          if (isMobile) {
+            const handles = document.querySelectorAll('.drag-handle');
+            handles.forEach(handle => {
+              handle.addEventListener('touchstart', () => console.log('touchstart on handle'));
+              handle.addEventListener('touchmove', () => console.log('touchmove on handle'));
+              handle.addEventListener('touchend', () => console.log('touchend on handle'));
+            });
+          }
+
+
         },
         
         initEdit(taskId, field, value) {
