@@ -356,6 +356,15 @@ def serve_service_worker():
 def serve_manifest():
     return send_from_directory('static', 'manifest.json')
 
+
+
+@app.after_request
+def set_cache_control(response):
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
 # -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
